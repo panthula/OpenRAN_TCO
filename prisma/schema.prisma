@@ -1,0 +1,228 @@
+// OpenRAN TCO Database Schema
+// Designed for granular queries by day/domain/layer/bucket/scope
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ============================================================================
+// Scenario Management
+// ============================================================================
+
+model Scenario {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isBaseline  Boolean  @default(false)
+  parentId    String?  // For cloned scenarios
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent   Scenario?  @relation("ScenarioClones", fields: [parentId], references: [id])
+  clones   Scenario[] @relation("ScenarioClones")
+  versions ScenarioVersion[]
+  sweeps   SweepDefinition[]
+}
+
+model ScenarioVersion {
+  id          String   @id @default(cuid())
+  scenarioId  String
+  versionNum  Int
+  description String?
+  createdAt   DateTime @default(now())
+  isActive    Boolean  @default(true)
+
+  scenario      Scenario       @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  inputFacts    InputFact[]
+  computedFacts ComputedFact[]
+  siteArchetypes SiteArchetype[]
+  dcTypes       DcType[]
+  changeSets    ChangeSet[]
+  sweepRuns     SweepRun[]
+
+  @@unique([scenarioId, versionNum])
+  @@index([scenarioId])
+}
+
+// ============================================================================
+// Network Structure (Dimensional)
+// ============================================================================
+
+model SiteArchetype {
+  id               String @id @default(cuid())
+  scenarioVersionId String
+  name             String
+  numSites         Int
+  numCus           Int
+  description      String?
+
+  scenarioVersion ScenarioVersion @relation(fields: [scenarioVersionId], references: [id], onDelete: Cascade)
+
+  @@index([scenarioVersionId])
+}
+
+model DcType {
+  id               String @id @default(cuid())
+  scenarioVersionId String
+  name             String // edge, regional, central
+  numDcs           Int
+  description      String?
+
+  scenarioVersion ScenarioVersion @relation(fields: [scenarioVersionId], references: [id], onDelete: Cascade)
+
+  @@index([scenarioVersionId])
+}
+
+// ============================================================================
+// Input Facts (High-Granularity)
+// Single table for all numeric inputs - queryable by any dimension
+// ============================================================================
+
+model InputFact {
+  id                 String   @id @default(cuid())
+  scenarioVersionId  String
+  
+  // Dimensional keys
+  day                String   // day0, day1, day2
+  domain             String   // ran, cloud, oss
+  layer              String   // hardware_bom, software, services, staffing, site_opex, lifecycle, assumptions
+  bucket             String   // standardized bucket key
+  scopeType          String   // site_archetype, dc_type, network_global
+  scopeId            String?  // FK to SiteArchetype or DcType, null for global
+  driver             String   // scaling driver
+  
+  // Value
+  valueNumber        Float
+  valueJson          String?  // JSON for structured inputs (e.g., staffing drivers)
+  
+  // Metadata
+  unit               String   @default("USD")
+  currency           String   @default("USD")
+  notes              String?
+  source             String?
+  assumptionFlag     Boolean  @default(false)
+  licenseModel       String?  // perpetual or subscription
+  spreadYears        Int?     // for perpetual CAPEX spreading
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  scenarioVersion    ScenarioVersion @relation(fields: [scenarioVersionId], references: [id], onDelete: Cascade)
+  // Note: scopeId references either SiteArchetype.id or DcType.id based on scopeType
+  // No FK constraint to allow polymorphic reference
+
+  @@index([scenarioVersionId])
+  @@index([day])
+  @@index([domain])
+  @@index([layer])
+  @@index([bucket])
+  @@index([scopeType, scopeId])
+  @@index([scenarioVersionId, day, domain])
+  @@index([scenarioVersionId, day, domain, layer])
+}
+
+// ============================================================================
+// Computed Facts (Outputs)
+// ============================================================================
+
+model ComputedFact {
+  id                String @id @default(cuid())
+  scenarioVersionId String
+  
+  // Dimensional keys
+  metric            String // total_capex, total_opex, tco, npv, etc.
+  day               String?
+  domain            String?
+  layer             String?
+  bucket            String?
+  year              Int
+  
+  // Values
+  capex             Float  @default(0)
+  opex              Float  @default(0)
+  tco               Float  @default(0)
+  npv               Float?
+  
+  createdAt         DateTime @default(now())
+
+  scenarioVersion   ScenarioVersion @relation(fields: [scenarioVersionId], references: [id], onDelete: Cascade)
+
+  @@index([scenarioVersionId])
+  @@index([scenarioVersionId, year])
+  @@index([scenarioVersionId, metric])
+  @@index([scenarioVersionId, day, domain])
+}
+
+// ============================================================================
+// Parameter Sweeps
+// ============================================================================
+
+model SweepDefinition {
+  id          String   @id @default(cuid())
+  scenarioId  String
+  name        String
+  description String?
+  
+  // Parameters to vary (JSON array)
+  // Each: { bucket, scopeType, scopeId, minValue, maxValue, steps }
+  parameters  String   // JSON
+  
+  createdAt   DateTime @default(now())
+
+  scenario    Scenario   @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  runs        SweepRun[]
+
+  @@index([scenarioId])
+}
+
+model SweepRun {
+  id                  String   @id @default(cuid())
+  sweepDefinitionId   String
+  scenarioVersionId   String
+  runIndex            Int
+  
+  // Parameter values used for this run (JSON)
+  parameterValues     String   // JSON
+  
+  // Summary results (JSON)
+  results             String?  // JSON with key metrics
+  
+  createdAt           DateTime @default(now())
+
+  sweepDefinition     SweepDefinition @relation(fields: [sweepDefinitionId], references: [id], onDelete: Cascade)
+  scenarioVersion     ScenarioVersion @relation(fields: [scenarioVersionId], references: [id], onDelete: Cascade)
+
+  @@index([sweepDefinitionId])
+  @@index([scenarioVersionId])
+}
+
+// ============================================================================
+// Agent Change Sets
+// ============================================================================
+
+model ChangeSet {
+  id                String   @id @default(cuid())
+  scenarioVersionId String
+  
+  // Proposed changes (JSON array)
+  // Each: { operation: 'add'|'update'|'delete', factId?, inputData? }
+  changes           String   // JSON
+  
+  rationale         String?  // Agent's explanation
+  prompt            String?  // User's original prompt
+  
+  status            String   @default("proposed") // proposed, approved, rejected, applied
+  
+  createdAt         DateTime @default(now())
+  appliedAt         DateTime?
+  resultVersionId   String?  // New version created after applying
+
+  scenarioVersion   ScenarioVersion @relation(fields: [scenarioVersionId], references: [id], onDelete: Cascade)
+
+  @@index([scenarioVersionId])
+  @@index([status])
+}

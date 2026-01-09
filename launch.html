@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenRAN TCO Modeler - Launch</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #e2e8f0;
+    }
+    .container {
+      max-width: 600px;
+      padding: 40px;
+      text-align: center;
+    }
+    .logo {
+      font-size: 48px;
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle {
+      color: #94a3b8;
+      margin-bottom: 32px;
+      font-size: 14px;
+    }
+    .launch-btn {
+      display: inline-block;
+      padding: 16px 48px;
+      font-size: 18px;
+      font-weight: 600;
+      color: white;
+      background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+      border: none;
+      border-radius: 12px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 24px rgba(6, 182, 212, 0.3);
+    }
+    .launch-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(6, 182, 212, 0.4);
+    }
+    .setup-section {
+      margin-top: 48px;
+      padding: 24px;
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid #334155;
+      border-radius: 12px;
+      text-align: left;
+    }
+    .setup-section h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #cbd5e1;
+    }
+    .setup-section code {
+      display: block;
+      background: #0f172a;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-family: 'Fira Code', 'Consolas', monospace;
+      font-size: 13px;
+      color: #22d3ee;
+      margin-bottom: 8px;
+    }
+    .setup-section p {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+    .quick-links {
+      margin-top: 32px;
+    }
+    .quick-links h3 {
+      font-size: 14px;
+      color: #94a3b8;
+      margin-bottom: 12px;
+    }
+    .links-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .quick-link {
+      padding: 10px 12px;
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid #334155;
+      border-radius: 8px;
+      text-decoration: none;
+      color: #94a3b8;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .quick-link:hover {
+      background: rgba(6, 182, 212, 0.1);
+      border-color: #06b6d4;
+      color: #22d3ee;
+    }
+    .footer {
+      margin-top: 40px;
+      font-size: 12px;
+      color: #475569;
+    }
+
+    .status {
+      margin-top: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid #334155;
+      background: rgba(30, 41, 59, 0.5);
+      color: #cbd5e1;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #64748b;
+      box-shadow: 0 0 0 4px rgba(100, 116, 139, 0.15);
+    }
+
+    .dot.ok {
+      background: #22c55e;
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+    }
+
+    .dot.bad {
+      background: #ef4444;
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15);
+    }
+
+    .port-ctl {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .port-ctl input {
+      width: 96px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: rgba(15, 23, 42, 0.9);
+      color: #e2e8f0;
+      outline: none;
+      font-size: 13px;
+    }
+
+    .port-ctl button {
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: rgba(30, 41, 59, 0.5);
+      color: #cbd5e1;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .port-ctl button:hover {
+      border-color: #06b6d4;
+      color: #22d3ee;
+      background: rgba(6, 182, 212, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">📡</div>
+    <h1>OpenRAN TCO Modeler</h1>
+    <p class="subtitle">Total Cost of Ownership Analysis Platform</p>
+
+    <a id="launchLink" href="http://localhost:3000" class="launch-btn">
+      🚀 Launch Application
+    </a>
+    
+    <p style="margin-top: 16px; font-size: 13px; color: #94a3b8;">
+      Clicking will open the app in this tab. To open in a new tab, right-click → "Open in new tab"
+    </p>
+
+    <div class="status">
+      <span class="badge" id="serverBadge" title="Launcher will try to detect the running Next.js dev server port.">
+        <span class="dot" id="serverDot"></span>
+        <span id="serverText">Detecting server…</span>
+      </span>
+
+      <span class="port-ctl" title="If detection fails, set the port from your terminal output (e.g. 3000 or 3001).">
+        <input id="portInput" type="number" min="1" max="65535" step="1" value="3000" />
+        <button id="usePortBtn" type="button">Use port</button>
+      </span>
+    </div>
+
+    <div class="setup-section">
+      <h2>First Time Setup</h2>
+      <code>npm install</code>
+      <p>Install dependencies (run once)</p>
+      <code>npx prisma migrate dev</code>
+      <p>Initialize database (run once)</p>
+      <code>npm run dev</code>
+      <p>Start development server, then click Launch above</p>
+    </div>
+
+    <div class="quick-links">
+      <h3>Quick Navigation</h3>
+      <div class="links-grid">
+        <a data-path="/setup" href="http://localhost:3000/setup" class="quick-link" target="_blank" rel="noopener noreferrer">Setup</a>
+        <a data-path="/ran" href="http://localhost:3000/ran" class="quick-link" target="_blank" rel="noopener noreferrer">RAN</a>
+        <a data-path="/cloud" href="http://localhost:3000/cloud" class="quick-link" target="_blank" rel="noopener noreferrer">Cloud</a>
+        <a data-path="/oss" href="http://localhost:3000/oss" class="quick-link" target="_blank" rel="noopener noreferrer">OSS</a>
+        <a data-path="/dashboard" href="http://localhost:3000/dashboard" class="quick-link" target="_blank" rel="noopener noreferrer">Dashboard</a>
+        <a data-path="/agent" href="http://localhost:3000/agent" class="quick-link" target="_blank" rel="noopener noreferrer">Agent</a>
+      </div>
+    </div>
+
+    <p class="footer">
+      Make sure <code style="display:inline; background:#1e293b; padding:2px 6px; border-radius:4px;">npm run dev</code> is running before clicking launch.
+    </p>
+  </div>
+
+  <script>
+    // This launcher is often opened from a local file. Next.js dev server may not be on :3000 if the port is busy.
+    // Auto-detecting a localhost port from file:// is unreliable in modern browsers, so we default to 3000 and allow manual override.
+    (function () {
+      const PORT_STORAGE_KEY = "openran_tco_port";
+
+      const launchLink = document.getElementById("launchLink");
+      const serverText = document.getElementById("serverText");
+      const serverDot = document.getElementById("serverDot");
+      const portInput = document.getElementById("portInput");
+      const usePortBtn = document.getElementById("usePortBtn");
+
+      function setStatus(kind, text) {
+        serverText.textContent = text;
+        serverDot.classList.remove("ok", "bad");
+        if (kind === "ok") serverDot.classList.add("ok");
+        if (kind === "bad") serverDot.classList.add("bad");
+      }
+
+      function normalizePort(p) {
+        const n = Number(p);
+        if (!Number.isFinite(n)) return null;
+        const int = Math.trunc(n);
+        if (int < 1 || int > 65535) return null;
+        return int;
+      }
+
+      function setBasePort(port) {
+        const base = `http://localhost:${port}`;
+        launchLink.href = base;
+
+        const navLinks = document.querySelectorAll("a.quick-link[data-path]");
+        navLinks.forEach((a) => {
+          const path = a.getAttribute("data-path") || "/";
+          a.href = base + path;
+        });
+
+        try { localStorage.setItem(PORT_STORAGE_KEY, String(port)); } catch (e) {}
+        portInput.value = String(port);
+      }
+
+      function initPort() {
+        // Default to 3000 (standard Next.js port). User can override if their server is on a different port.
+        const port = 3000;
+        
+        // Clear any stale saved port and reset to 3000
+        try { localStorage.setItem(PORT_STORAGE_KEY, "3000"); } catch (e) {}
+        
+        setBasePort(port);
+        setStatus("ok", `Using localhost:${port} — change if your terminal shows a different port`);
+      }
+
+      usePortBtn.addEventListener("click", () => {
+        const port = normalizePort(portInput.value);
+        if (!port) {
+          setStatus("bad", "Invalid port");
+          return;
+        }
+        setBasePort(port);
+        setStatus("neutral", `Using localhost:${port} (click Launch)`);
+      });
+
+      // Simple same-tab navigation - most reliable approach
+      launchLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        const href = launchLink.href;
+        
+        // Navigate in the same tab - this ALWAYS works
+        window.location.href = href;
+      });
+
+      initPort();
+    })();
+  </script>
+</body>
+</html>
