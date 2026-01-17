@@ -16,13 +16,17 @@ import {
   LifecycleBuckets,
 } from '@/lib/model/taxonomy';
 
-// Day1 service buckets for RAN
-const ranInstallationBuckets = [
+// Day1 service buckets for RAN - Site installation items (scaled per_site)
+const ranSiteInstallationBuckets = [
   'site_installation',
-  'dc_installation',
-  'ru_du_cu_commissioning',
   'transport_fiber_integration',
   'automation_ztp_enablement',
+] as const;
+
+// Day1 service buckets for RAN - CU installation items (scaled per_cu)
+const ranCuInstallationBuckets = [
+  'dc_installation',
+  'ru_du_cu_commissioning',
 ] as const;
 
 const ranTestingBuckets = [
@@ -101,7 +105,7 @@ export default function RanPage() {
                 layer="hardware_bom"
                 buckets={RanCuDcBomBuckets}
                 defaultDriver="per_cu"
-                defaultScope="dc_type"
+                defaultScope="site_archetype"
               />
             </CardContent>
           </Card>
@@ -126,7 +130,7 @@ export default function RanPage() {
           <Card>
             <CardHeader
               title="RAN SW/ DC"
-              description="CU software, 3PP licenses, and other one-time licenses (per DC)"
+              description="CU software, 3PP licenses, and other one-time licenses (per site archetype)"
             />
             <CardContent>
               <InputTable
@@ -134,8 +138,8 @@ export default function RanPage() {
                 domain="ran"
                 layer="software"
                 buckets={RanSoftwareDcBuckets}
-                defaultDriver="per_dc"
-                defaultScope="dc_type"
+                defaultDriver="per_cu"
+                defaultScope="site_archetype"
               />
             </CardContent>
           </Card>
@@ -153,17 +157,42 @@ export default function RanPage() {
           <Card>
             <CardHeader
               title="Physical Installation"
-              description="Site and DC installation costs"
+              description="Site and CU installation costs by archetype"
             />
             <CardContent>
-              <InputTable
-                day="day1"
-                domain="ran"
-                layer="services"
-                buckets={ranInstallationBuckets}
-                defaultDriver="per_site"
-                defaultScope="site_archetype"
-              />
+              <div className="space-y-6">
+                {/* Site Installation Section */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
+                    <span className="text-sm font-medium text-gray-300">Site Installation</span>
+                    <span className="text-xs text-gray-500">(per site)</span>
+                  </div>
+                  <InputTable
+                    day="day1"
+                    domain="ran"
+                    layer="services"
+                    buckets={ranSiteInstallationBuckets}
+                    defaultDriver="per_site"
+                    defaultScope="site_archetype"
+                  />
+                </div>
+
+                {/* CU Installation Section */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
+                    <span className="text-sm font-medium text-gray-300">CU Installation</span>
+                    <span className="text-xs text-gray-500">(per CU)</span>
+                  </div>
+                  <InputTable
+                    day="day1"
+                    domain="ran"
+                    layer="services"
+                    buckets={ranCuInstallationBuckets}
+                    defaultDriver="per_cu"
+                    defaultScope="site_archetype"
+                  />
+                </div>
+              </div>
             </CardContent>
           </Card>
 
