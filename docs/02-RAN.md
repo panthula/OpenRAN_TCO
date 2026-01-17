@@ -69,13 +69,13 @@ Per-site software licenses by archetype:
 
 ### RAN SW/ DC
 
-CU software and DC-level licenses by DC type:
+CU software and DC-level licenses by site archetype:
 
 | Bucket | Description | Driver | Scope |
 |--------|-------------|--------|-------|
-| `cu_software_per_cu` | CU software license | per_dc | dc_type |
-| `3pp_licenses_per_dc` | Third-party licenses | per_dc | dc_type |
-| `other_ran_software` | Other one-time licenses | per_dc | dc_type |
+| `cu_software_per_cu` | CU software license | per_cu | site_archetype |
+| `3pp_licenses_per_dc` | Third-party licenses | per_cu | site_archetype |
+| `other_ran_software` | Other one-time licenses | per_cu | site_archetype |
 
 ### Day 0 Cost Treatment
 
@@ -92,15 +92,22 @@ Day 1 covers all installation, commissioning, testing, and integration service c
 
 ### Physical Installation
 
-Per-site costs by archetype:
+The Physical Installation card is split into two sub-sections with different scaling drivers:
 
-| Bucket | Description | Driver |
-|--------|-------------|--------|
-| `site_installation` | Site installation (labor, rigging) | per_site |
-| `dc_installation` | DC installation for CU racks | per_dc |
-| `ru_du_cu_commissioning` | RU/DU/CU commissioning | per_site |
-| `transport_fiber_integration` | Transport and fiber integration | per_site |
-| `automation_ztp_enablement` | Automation/ZTP enablement | per_site |
+#### Site Installation (per_site)
+
+| Bucket | Description | Driver | Scope |
+|--------|-------------|--------|-------|
+| `site_installation` | Site installation (labor, rigging) | per_site | site_archetype |
+| `transport_fiber_integration` | Transport and fiber integration | per_site | site_archetype |
+| `automation_ztp_enablement` | Automation/ZTP enablement | per_site | site_archetype |
+
+#### CU Installation (per_cu)
+
+| Bucket | Description | Driver | Scope |
+|--------|-------------|--------|-------|
+| `dc_installation` | DC installation for CU racks | per_cu | site_archetype |
+| `ru_du_cu_commissioning` | RU/DU/CU commissioning | per_cu | site_archetype |
 
 ### Testing & Acceptance
 
@@ -221,6 +228,18 @@ Each day shows a breakdown by driver type:
 
 import { RanDollarSummary } from '@/components/ran/RanDollarSummary';
 
+// Day1 service buckets - split by scaling driver
+const ranSiteInstallationBuckets = [
+  'site_installation',
+  'transport_fiber_integration',
+  'automation_ztp_enablement',
+] as const;
+
+const ranCuInstallationBuckets = [
+  'dc_installation',
+  'ru_du_cu_commissioning',
+] as const;
+
 const dayTabs = [
   { id: 'day0', label: 'Day 0', icon: <Settings /> },
   { id: 'day1', label: 'Day 1', icon: <Wrench /> },
@@ -239,16 +258,21 @@ export default function RanPage() {
       {activeDay === 'day0' && (
         <>
           <InputTable ... buckets={RanSiteBomBuckets} defaultScope="site_archetype" />
-          <InputTable ... buckets={RanCuDcBomBuckets} defaultScope="dc_type" />
+          <InputTable ... buckets={RanCuDcBomBuckets} defaultScope="site_archetype" />
           <InputTable ... buckets={RanSoftwareSiteBuckets} defaultScope="site_archetype" />
-          <InputTable ... buckets={RanSoftwareDcBuckets} defaultScope="dc_type" />
+          <InputTable ... buckets={RanSoftwareDcBuckets} defaultScope="site_archetype" defaultDriver="per_cu" />
         </>
       )}
 
-      {/* Day 1 Inputs */}
+      {/* Day 1 Inputs - Physical Installation split into sub-sections */}
       {activeDay === 'day1' && (
         <>
-          <InputTable ... buckets={ranInstallationBuckets} />
+          <Card title="Physical Installation">
+            {/* Site Installation sub-section */}
+            <InputTable ... buckets={ranSiteInstallationBuckets} defaultDriver="per_site" />
+            {/* CU Installation sub-section */}
+            <InputTable ... buckets={ranCuInstallationBuckets} defaultDriver="per_cu" />
+          </Card>
           <InputTable ... buckets={ranTestingBuckets} />
         </>
       )}
