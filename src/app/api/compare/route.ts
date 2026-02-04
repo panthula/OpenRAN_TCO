@@ -65,8 +65,8 @@ export async function GET(request: NextRequest) {
     });
 
     if (scenarios.length !== scenarioIds.length) {
-      const foundIds = new Set(scenarios.map(s => s.id));
-      const missingIds = scenarioIds.filter(id => !foundIds.has(id));
+      const foundIds = new Set(scenarios.map((s: (typeof scenarios)[number]) => s.id));
+      const missingIds = scenarioIds.filter((id: string) => !foundIds.has(id));
       throw ApiErrors.notFound(`Scenarios with IDs: ${missingIds.join(', ')}`);
     }
 

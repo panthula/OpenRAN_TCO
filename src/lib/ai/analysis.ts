@@ -85,7 +85,7 @@ You are analyzing a TCO scenario with the following context:
 
 **Network Topology:**
 - Total Sites: ${context.totalSites.toLocaleString()}
-${context.siteArchetypes.map((a) => `- ${a.name}: ${a.numSites} sites, ${a.numCus} CUs, ${a.numDcs} DCs (${a.deploymentYears} year deployment)`).join('\n')}
+${context.siteArchetypes.map((a: SiteArchetype) => `- ${a.name}: ${a.numSites} sites, ${a.numCus} CUs, ${a.numDcs} DCs (${a.deploymentYears} year deployment)`).join('\n')}
 
 **TCO Summary:**
 - Total TCO: $${(context.totalTco / 1000000).toFixed(2)}M
@@ -93,7 +93,7 @@ ${context.siteArchetypes.map((a) => `- ${a.name}: ${a.numSites} sites, ${a.numCu
 - Total OPEX: $${(context.totalOpex / 1000000).toFixed(2)}M (${((context.totalOpex / context.totalTco) * 100).toFixed(1)}%)
 
 **Cost Breakdown by Year:**
-${context.computedFacts.map((f) => `- Year ${f.year}: CAPEX $${(f.capex / 1000000).toFixed(2)}M, OPEX $${(f.opex / 1000000).toFixed(2)}M`).join('\n')}
+${context.computedFacts.map((f: ComputedFact) => `- Year ${f.year}: CAPEX $${(f.capex / 1000000).toFixed(2)}M, OPEX $${(f.opex / 1000000).toFixed(2)}M`).join('\n')}
 
 ${insightPrompt.systemPromptAddition}
 
@@ -128,8 +128,8 @@ function buildFactsContext(facts: InputFact[]): string {
     lines.push(`\n${domain.toUpperCase()} Domain:`);
     for (const [day, domainFacts] of Object.entries(days)) {
       const significant = domainFacts
-        .filter((f) => f.valueNumber > 0)
-        .sort((a, b) => b.valueNumber - a.valueNumber)
+        .filter((f: InputFact) => f.valueNumber > 0)
+        .sort((a: InputFact, b: InputFact) => b.valueNumber - a.valueNumber)
         .slice(0, 5);
 
       if (significant.length > 0) {
@@ -298,7 +298,7 @@ Would you like me to suggest optimizations for any of these areas?`,
       };
 
     case 'optimization_opportunities': {
-      const powerFact = context.inputFacts.find((f) => f.bucket === 'power_per_site');
+      const powerFact = context.inputFacts.find((f: InputFact) => f.bucket === 'power_per_site');
       const currentPower = powerFact?.valueNumber || 5000;
       const proposedPower = Math.round(currentPower * 0.85);
 
