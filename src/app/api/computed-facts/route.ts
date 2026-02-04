@@ -30,8 +30,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(facts);
-  } catch (error) {
-    console.error('Error fetching computed facts:', error);
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch computed facts' }, { status: 500 });
   }
 }

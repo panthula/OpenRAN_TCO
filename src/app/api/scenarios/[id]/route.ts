@@ -22,8 +22,7 @@ export async function GET(
     }
 
     return NextResponse.json(scenario);
-  } catch (error) {
-    console.error('Error fetching scenario:', error);
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch scenario' }, { status: 500 });
   }
 }
@@ -40,8 +39,7 @@ export async function DELETE(
     });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting scenario:', error);
+  } catch {
     return NextResponse.json({ error: 'Failed to delete scenario' }, { status: 500 });
   }
 }
@@ -66,7 +64,11 @@ export async function POST(
           take: 1,
           include: {
             inputFacts: true,
-            siteArchetypes: true,
+            siteArchetypes: {
+              include: {
+                deploymentSchedule: true,
+              },
+            },
             dcTypes: true,
           },
         },
@@ -78,6 +80,9 @@ export async function POST(
     }
 
     const sourceVersion = source.versions[0];
+    if (!sourceVersion) {
+      return NextResponse.json({ error: 'Source scenario version not found' }, { status: 404 });
+    }
 
     // Create new scenario
     const newScenario = await prisma.scenario.create({
@@ -99,35 +104,85 @@ export async function POST(
       },
     });
 
-    const newVersionId = newScenario.versions[0].id;
+    const newVersion = newScenario.versions[0];
+    if (!newVersion) {
+      return NextResponse.json({ error: 'Failed to create scenario version' }, { status: 500 });
+    }
+    const newVersionId = newVersion.id;
 
-    // Clone site archetypes
+    // Clone site archetypes using batch insert for better performance
     const archetypeIdMap: Record<string, string> = {};
-    for (const arch of sourceVersion.siteArchetypes) {
-      const newArch = await prisma.siteArchetype.create({
-        data: {
-          scenarioVersionId: newVersionId,
-          name: arch.name,
-          numSites: arch.numSites,
-          numCus: arch.numCus,
-          description: arch.description,
-        },
+    if (sourceVersion.siteArchetypes.length > 0) {
+      const archetypeData = sourceVersion.siteArchetypes.map(arch => ({
+        scenarioVersionId: newVersionId,
+        name: arch.name,
+        numSites: arch.numSites,
+        numCus: arch.numCus,
+        numDcs: arch.numDcs,
+        description: arch.description,
+        deploymentYears: arch.deploymentYears,
+      }));
+
+      await prisma.siteArchetype.createMany({ data: archetypeData });
+
+      // Query back to build ID mapping (1 query instead of N)
+      const newArchetypes = await prisma.siteArchetype.findMany({
+        where: { scenarioVersionId: newVersionId },
+        select: { id: true, name: true },
       });
-      archetypeIdMap[arch.id] = newArch.id;
+
+      for (const oldArch of sourceVersion.siteArchetypes) {
+        const newArch = newArchetypes.find(a => a.name === oldArch.name);
+        if (newArch) {
+          archetypeIdMap[oldArch.id] = newArch.id;
+        }
+      }
+
+      // Clone deployment schedules
+      const deploymentScheduleData = [];
+      for (const oldArch of sourceVersion.siteArchetypes) {
+        const newArchId = archetypeIdMap[oldArch.id];
+        if (newArchId && oldArch.deploymentSchedule) {
+          for (const schedule of oldArch.deploymentSchedule) {
+            deploymentScheduleData.push({
+              archetypeId: newArchId,
+              yearIndex: schedule.yearIndex,
+              sitesDeployed: schedule.sitesDeployed,
+              cusDeployed: schedule.cusDeployed,
+              dcsDeployed: schedule.dcsDeployed,
+            });
+          }
+        }
+      }
+      if (deploymentScheduleData.length > 0) {
+        await prisma.deploymentYear.createMany({ data: deploymentScheduleData });
+      }
     }
 
-    // Clone DC types
+    // Clone DC types using batch insert
     const dcIdMap: Record<string, string> = {};
-    for (const dc of sourceVersion.dcTypes) {
-      const newDc = await prisma.dcType.create({
-        data: {
-          scenarioVersionId: newVersionId,
-          name: dc.name,
-          numDcs: dc.numDcs,
-          description: dc.description,
-        },
+    if (sourceVersion.dcTypes.length > 0) {
+      const dcData = sourceVersion.dcTypes.map(dc => ({
+        scenarioVersionId: newVersionId,
+        name: dc.name,
+        numDcs: dc.numDcs,
+        description: dc.description,
+      }));
+
+      await prisma.dcType.createMany({ data: dcData });
+
+      // Query back to build ID mapping (1 query instead of N)
+      const newDcTypes = await prisma.dcType.findMany({
+        where: { scenarioVersionId: newVersionId },
+        select: { id: true, name: true },
       });
-      dcIdMap[dc.id] = newDc.id;
+
+      for (const oldDc of sourceVersion.dcTypes) {
+        const newDc = newDcTypes.find(d => d.name === oldDc.name);
+        if (newDc) {
+          dcIdMap[oldDc.id] = newDc.id;
+        }
+      }
     }
 
     // Clone input facts with updated scope IDs
@@ -167,8 +222,7 @@ export async function POST(
     }
 
     return NextResponse.json(newScenario, { status: 201 });
-  } catch (error) {
-    console.error('Error cloning scenario:', error);
+  } catch {
     return NextResponse.json({ error: 'Failed to clone scenario' }, { status: 500 });
   }
 }

@@ -1,10 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { BarChart3, TrendingUp, DollarSign, Calculator, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { BarChart3, TrendingUp, DollarSign, Calculator, RefreshCw, SlidersHorizontal, AlertCircle, GitCompare } from 'lucide-react';
 import { useScenarioStore } from '@/lib/store/scenario-store';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { formatCurrency } from '@/lib/utils/currency';
+import { DefaultModelAssumptions } from '@/lib/model/taxonomy';
+import { DomainImpact } from '@/components/dashboard/DomainImpact';
 import {
   BarChart,
   Bar,
@@ -21,8 +25,6 @@ import {
   Cell,
 } from 'recharts';
 
-const COLORS = ['#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444'];
-
 export default function DashboardPage() {
   const {
     currentScenario,
@@ -30,23 +32,49 @@ export default function DashboardPage() {
     computedSummary,
     computeTco,
     isLoading,
+    error,
+    inputFacts,
+    adjustmentSets,
+    fetchAdjustmentSets,
   } = useScenarioStore();
 
   const [hasComputed, setHasComputed] = useState(false);
 
-  const handleCompute = async () => {
-    await computeTco();
-    setHasComputed(true);
-  };
-
-  // Format currency
-  const formatCurrency = (value: number) => {
-    if (value >= 1000000) {
-      return `$${(value / 1000000).toFixed(1)}M`;
-    } else if (value >= 1000) {
-      return `$${(value / 1000).toFixed(0)}K`;
+  // Fetch adjustment sets when version changes
+  useEffect(() => {
+    if (currentVersion) {
+      fetchAdjustmentSets();
     }
-    return `$${value.toFixed(0)}`;
+  }, [currentVersion, fetchAdjustmentSets]);
+
+  // Count active adjustments
+  const activeAdjustments = adjustmentSets.filter(s => s.isActive);
+
+  // Get the discount rate from assumptions or use default
+  const discountRate = React.useMemo(() => {
+    const discountFact = inputFacts.find(
+      f => f.layer === 'assumptions' && f.bucket === 'discount_rate'
+    );
+    return discountFact?.valueNumber ?? DefaultModelAssumptions.discount_rate;
+  }, [inputFacts]);
+
+  // Memoize cumulative TCO calculation with single-pass accumulation (O(n) instead of O(n²))
+  const cumulativeTcoData = React.useMemo(() => {
+    if (!computedSummary?.byYear) return [];
+    let cumulative = 0;
+    return computedSummary.byYear.map((yr) => {
+      cumulative += yr.tco;
+      return { ...yr, cumulative };
+    });
+  }, [computedSummary]);
+
+  const handleCompute = async () => {
+    try {
+      await computeTco();
+      setHasComputed(true);
+    } catch {
+      // Error already set in store
+    }
   };
 
   if (!currentVersion) {
@@ -90,11 +118,35 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
-        <Button onClick={handleCompute} isLoading={isLoading}>
-          <RefreshCw className="w-4 h-4" />
-          {hasComputed ? 'Recompute TCO' : 'Compute TCO'}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/comparison"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 hover:text-gray-100 transition-colors"
+          >
+            <GitCompare className="w-4 h-4" />
+            Compare Scenarios
+          </Link>
+          <Button onClick={handleCompute} isLoading={isLoading}>
+            <RefreshCw className="w-4 h-4" />
+            {hasComputed ? 'Recompute TCO' : 'Compute TCO'}
+          </Button>
+        </div>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <Card className="border-red-500/50 bg-red-500/10">
+          <CardContent>
+            <div className="flex items-center gap-3 text-red-400">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <div>
+                <p className="font-medium">Computation Error</p>
+                <p className="text-sm text-red-300">{error}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {!computedSummary ? (
         <Card>
@@ -220,14 +272,7 @@ export default function DashboardPage() {
               <CardHeader title="Cumulative TCO" description="Total cost over time" />
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart
-                    data={computedSummary.byYear.map((yr, idx) => ({
-                      ...yr,
-                      cumulative: computedSummary.byYear
-                        .slice(0, idx + 1)
-                        .reduce((sum, y) => sum + y.tco, 0),
-                    }))}
-                  >
+                  <LineChart data={cumulativeTcoData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis
                       dataKey="year"
@@ -338,12 +383,62 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex justify-between items-center py-3">
                     <span className="text-gray-400">NPV Discount Rate</span>
-                    <span className="font-semibold text-gray-200">8%</span>
+                    <span className="font-semibold text-gray-200">
+                      {(discountRate * 100).toFixed(1)}%
+                    </span>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
+
+          {/* Domain Impact Chart */}
+          {computedSummary.byDayDomain && Object.keys(computedSummary.byDayDomain).length > 0 && (
+            <DomainImpact byDayDomain={computedSummary.byDayDomain} />
+          )}
+
+          {/* Active Adjustments Info */}
+          {activeAdjustments.length > 0 && (
+            <Card variant="gradient">
+              <CardHeader
+                title="Active Adjustments"
+                description="What-if adjustments applied to this calculation"
+              />
+              <CardContent>
+                <div className="space-y-3">
+                  {activeAdjustments.map((set) => (
+                    <div key={set.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                      <div className="flex items-center gap-3">
+                        <SlidersHorizontal className="w-5 h-5 text-cyan-400" />
+                        <div>
+                          <p className="font-medium text-gray-200">{set.name}</p>
+                          {set.description && (
+                            <p className="text-sm text-gray-500">{set.description}</p>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-sm text-gray-400">
+                        {set.rules.length} rule{set.rules.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {computedSummary.adjustments && computedSummary.adjustments.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-700">
+                    <p className="text-sm text-gray-400 mb-2">Adjustment Impact Summary:</p>
+                    {computedSummary.adjustments.map((adj) => (
+                      <div key={adj.id} className="flex justify-between items-center text-sm">
+                        <span className="text-gray-300">{adj.name}</span>
+                        <span className={`font-mono ${adj.totalImpact >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                          {adj.totalImpact >= 0 ? '+' : ''}{formatCurrency(adj.totalImpact)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>

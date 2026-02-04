@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/client';
-import { computeAndPersist } from '@/lib/compute/engine';
 
 // GET /api/sweeps - Get sweeps for a scenario
 export async function GET(request: NextRequest) {
@@ -23,8 +22,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(sweeps);
-  } catch (error) {
-    console.error('Error fetching sweeps:', error);
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch sweeps' }, { status: 500 });
   }
 }
@@ -52,8 +50,7 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(sweep, { status: 201 });
-  } catch (error) {
-    console.error('Error creating sweep:', error);
+  } catch {
     return NextResponse.json({ error: 'Failed to create sweep' }, { status: 500 });
   }
 }

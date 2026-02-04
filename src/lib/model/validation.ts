@@ -11,6 +11,7 @@ import {
   ScalingDrivers,
   LicenseModels,
   Currencies,
+  AdjustmentTypes,
 } from './taxonomy';
 
 export const DaySchema = z.enum(Days);
@@ -42,21 +43,27 @@ export const InputFactSchema = z.object({
   spreadYears: z.number().nullable().optional(),
 });
 
+// Deployment schedule for phased rollout
+export const DeploymentYearSchema = z.object({
+  id: z.string().optional(),
+  archetypeId: z.string().optional(), // Optional - will be set by the server
+  yearIndex: z.number().int().min(0).max(9, 'Year index must be 0-9 (up to 10 years)'),
+  sitesDeployed: z.number().int().min(0, 'Sites deployed must be non-negative').default(0),
+  cusDeployed: z.number().int().min(0, 'CUs deployed must be non-negative').default(0),
+  dcsDeployed: z.number().int().min(0, 'DCs deployed must be non-negative').default(0),
+});
+
 export const SiteArchetypeSchema = z.object({
   id: z.string().optional(),
   scenarioVersionId: z.string(),
   name: z.string().min(1, 'Name is required'),
   numSites: z.number().int().min(0, 'Number of sites must be non-negative'),
   numCus: z.number().int().min(0, 'Number of CUs must be non-negative'),
+  numDcs: z.number().int().min(0, 'Number of DCs must be non-negative').default(1),
+  numDusPerSite: z.number().int().min(1, 'DUs per site must be at least 1').default(1),
   description: z.string().nullable().optional(),
-});
-
-export const DcTypeSchema = z.object({
-  id: z.string().optional(),
-  scenarioVersionId: z.string(),
-  name: z.string().min(1, 'Name is required'),
-  numDcs: z.number().int().min(0, 'Number of DCs must be non-negative'),
-  description: z.string().nullable().optional(),
+  deploymentYears: z.number().int().min(1).max(10, 'Deployment years must be 1-10').default(1),
+  deploymentSchedule: z.array(DeploymentYearSchema).optional(),
 });
 
 export const ScenarioSchema = z.object({
@@ -74,15 +81,6 @@ export const ModelAssumptionsSchema = z.object({
   inflation_rate: z.number().min(0).max(1).optional(),
   escalation_rate: z.number().min(0).max(1).optional(),
   perpetual_spread_years: z.number().int().min(1).max(10).optional(),
-});
-
-export const StaffingDriversSchema = z.object({
-  coverage_factor: z.number().min(1).default(4.2),
-  events_per_site_per_period: z.number().min(0).default(10),
-  auto_remediation_pct: z.number().min(0).max(1).default(0.6),
-  auto_containment_pct: z.number().min(0).max(1).default(0.4),
-  handling_time_minutes: z.number().min(0).default(30),
-  complexity_multiplier: z.number().min(0.1).max(10).default(1.0),
 });
 
 export const ChangeOperationSchema = z.object({
@@ -114,12 +112,31 @@ export const SweepDefinitionSchema = z.object({
   parameters: z.array(SweepParameterSchema),
 });
 
-export type InputFactInput = z.infer<typeof InputFactSchema>;
-export type SiteArchetypeInput = z.infer<typeof SiteArchetypeSchema>;
-export type DcTypeInput = z.infer<typeof DcTypeSchema>;
-export type ScenarioInput = z.infer<typeof ScenarioSchema>;
-export type ModelAssumptionsInput = z.infer<typeof ModelAssumptionsSchema>;
-export type StaffingDriversInput = z.infer<typeof StaffingDriversSchema>;
-export type ChangeSetInput = z.infer<typeof ChangeSetSchema>;
-export type SweepDefinitionInput = z.infer<typeof SweepDefinitionSchema>;
+// Adjustment schemas
+export const AdjustmentTypeSchema = z.enum(AdjustmentTypes);
+
+export const AdjustmentRuleSchema = z.object({
+  id: z.string().optional(),
+  adjustmentSetId: z.string().optional(),
+  targetDay: DaySchema.nullable().optional(),
+  targetDomain: DomainSchema.nullable().optional(),
+  targetLayer: LayerSchema.nullable().optional(),
+  targetBucket: z.string().nullable().optional(),
+  targetScopeType: ScopeTypeSchema.nullable().optional(),
+  targetScopeId: z.string().nullable().optional(),
+  adjustmentType: AdjustmentTypeSchema,
+  adjustmentValue: z.number(),
+  priority: z.number().int().default(0),
+  notes: z.string().nullable().optional(),
+});
+
+export const AdjustmentSetSchema = z.object({
+  id: z.string().optional(),
+  scenarioVersionId: z.string(),
+  name: z.string().min(1, 'Name is required'),
+  description: z.string().nullable().optional(),
+  isActive: z.boolean().default(true),
+  rules: z.array(AdjustmentRuleSchema).optional(),
+});
+
 

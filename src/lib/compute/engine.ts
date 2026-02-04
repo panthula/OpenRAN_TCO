@@ -1,6 +1,7 @@
 /**
  * TCO Computation Engine
- * Implements scaling rules, CAPEX/OPEX phasing, perpetual spreading, and NPV calculation.
+ * Implements scaling rules, CAPEX/OPEX phasing, perpetual spreading, NPV calculation,
+ * and deployment schedule phasing.
  */
 
 import prisma from '@/lib/db/client';
@@ -9,8 +10,21 @@ import {
   Domain,
   Layer,
   DefaultModelAssumptions,
+  DefaultCostRates,
   type ModelAssumptions,
 } from '@/lib/model/taxonomy';
+
+/**
+ * Safely parse JSON with fallback for malformed data
+ */
+function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
+  if (!json) return fallback;
+  try {
+    return JSON.parse(json) as T;
+  } catch {
+    return fallback;
+  }
+}
 
 export interface ComputeResult {
   year: number;
@@ -31,6 +45,13 @@ export interface ComputeBreakdown {
   tco: number;
 }
 
+export interface AdjustmentMetadata {
+  id: string;
+  name: string;
+  rulesApplied: number;
+  totalImpact: number;
+}
+
 export interface ComputeSummary {
   totalCapex: number;
   totalOpex: number;
@@ -39,6 +60,8 @@ export interface ComputeSummary {
   byYear: ComputeResult[];
   byDayDomain: Record<string, { capex: number; opex: number; tco: number }>;
   breakdown: ComputeBreakdown[];
+  adjustments?: AdjustmentMetadata[];
+  baselineTco?: number; // TCO before adjustments (for comparison)
 }
 
 /**
@@ -68,99 +91,368 @@ export async function getModelAssumptions(scenarioVersionId: string): Promise<Mo
 }
 
 /**
- * Get scaling counts for a scenario version
+ * Adjustment rule interface matching database schema
  */
-async function getScalingCounts(scenarioVersionId: string): Promise<{
-  totalSites: number;
-  totalCus: number;
-  sitesByScopeId: Record<string, number>;
-  cusByScopeId: Record<string, number>;
-  dcCountsByScopeId: Record<string, number>;
-}> {
-  const archetypes = await prisma.siteArchetype.findMany({
-    where: { scenarioVersionId },
-  });
+interface AdjustmentRule {
+  id: string;
+  adjustmentSetId: string;
+  targetDay: string | null;
+  targetDomain: string | null;
+  targetLayer: string | null;
+  targetBucket: string | null;
+  targetScopeType: string | null;
+  targetScopeId: string | null;
+  adjustmentType: string;
+  adjustmentValue: number;
+  priority: number;
+  notes: string | null;
+}
 
-  const dcTypes = await prisma.dcType.findMany({
-    where: { scenarioVersionId },
-  });
-
-  let totalSites = 0;
-  let totalCus = 0;
-  const sitesByScopeId: Record<string, number> = {};
-  const cusByScopeId: Record<string, number> = {};
-  const dcCountsByScopeId: Record<string, number> = {};
-
-  for (const arch of archetypes) {
-    totalSites += arch.numSites;
-    totalCus += arch.numCus;
-    sitesByScopeId[arch.id] = arch.numSites;
-    cusByScopeId[arch.id] = arch.numCus;
-  }
-
-  for (const dc of dcTypes) {
-    dcCountsByScopeId[dc.id] = dc.numDcs;
-  }
-
-  return { totalSites, totalCus, sitesByScopeId, cusByScopeId, dcCountsByScopeId };
+interface AdjustmentSetWithRules {
+  id: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  rules: AdjustmentRule[];
 }
 
 /**
- * Calculate the multiplier based on driver and scope
+ * Load active adjustment sets with their rules for a scenario version
+ */
+async function getActiveAdjustments(scenarioVersionId: string): Promise<AdjustmentSetWithRules[]> {
+  const adjustmentSets = await prisma.adjustmentSet.findMany({
+    where: {
+      scenarioVersionId,
+      isActive: true,
+    },
+    include: {
+      rules: {
+        orderBy: { priority: 'asc' },
+      },
+    },
+  });
+
+  return adjustmentSets;
+}
+
+/**
+ * Check if an adjustment rule matches an input fact
+ */
+function ruleMatchesFact(
+  rule: AdjustmentRule,
+  fact: {
+    day: string;
+    domain: string;
+    layer: string;
+    bucket: string;
+    scopeType: string;
+    scopeId: string | null;
+  }
+): boolean {
+  // null in rule means "match all"
+  if (rule.targetDay !== null && rule.targetDay !== fact.day) return false;
+  if (rule.targetDomain !== null && rule.targetDomain !== fact.domain) return false;
+  if (rule.targetLayer !== null && rule.targetLayer !== fact.layer) return false;
+  if (rule.targetBucket !== null && rule.targetBucket !== fact.bucket) return false;
+  if (rule.targetScopeType !== null && rule.targetScopeType !== fact.scopeType) return false;
+  if (rule.targetScopeId !== null && rule.targetScopeId !== fact.scopeId) return false;
+  return true;
+}
+
+/**
+ * Apply an adjustment rule to a value
+ */
+function applyAdjustment(value: number, rule: AdjustmentRule): number {
+  switch (rule.adjustmentType) {
+    case 'percentage':
+      // adjustmentValue is the percentage change (e.g., 10 = +10%, -20 = -20%)
+      return value * (1 + rule.adjustmentValue / 100);
+    case 'fixed':
+      // adjustmentValue is added/subtracted to the value
+      return value + rule.adjustmentValue;
+    case 'replace':
+      // adjustmentValue replaces the original value entirely
+      return rule.adjustmentValue;
+    default:
+      return value;
+  }
+}
+
+/**
+ * Get adjusted value for a fact based on all applicable rules
+ * Rules are applied in priority order (lower priority first)
+ */
+function getAdjustedValue(
+  originalValue: number,
+  fact: {
+    day: string;
+    domain: string;
+    layer: string;
+    bucket: string;
+    scopeType: string;
+    scopeId: string | null;
+  },
+  allRules: AdjustmentRule[]
+): { adjustedValue: number; appliedRules: AdjustmentRule[] } {
+  const appliedRules: AdjustmentRule[] = [];
+  let adjustedValue = originalValue;
+
+  // Rules should already be sorted by priority
+  for (const rule of allRules) {
+    if (ruleMatchesFact(rule, fact)) {
+      adjustedValue = applyAdjustment(adjustedValue, rule);
+      appliedRules.push(rule);
+    }
+  }
+
+  return { adjustedValue, appliedRules };
+}
+
+/**
+ * Scaling counts for a specific year
+ */
+interface YearScalingCounts {
+  // Deployments THIS year (for CAPEX)
+  deploymentsThisYear: {
+    sites: number;
+    cus: number;
+    dcs: number;
+    dus: number;  // Total DUs = sum of (sites × numDusPerSite) per archetype
+    sitesByScopeId: Record<string, number>;
+    cusByScopeId: Record<string, number>;
+    dcsByScopeId: Record<string, number>;
+    dusByScopeId: Record<string, number>;
+  };
+  // Cumulative deployments TO this year (for OPEX)
+  cumulativeToYear: {
+    sites: number;
+    cus: number;
+    dcs: number;
+    dus: number;  // Total DUs = sum of (sites × numDusPerSite) per archetype
+    sitesByScopeId: Record<string, number>;
+    cusByScopeId: Record<string, number>;
+    dcsByScopeId: Record<string, number>;
+    dusByScopeId: Record<string, number>;
+  };
+}
+
+/**
+ * Get scaling counts for a scenario version, optionally for a specific year
+ * When forYear is provided, returns per-year counts based on deployment schedule
+ * When forYear is undefined, returns total counts (backward compatible)
+ */
+async function getScalingCounts(
+  scenarioVersionId: string,
+  forYear?: number
+): Promise<YearScalingCounts> {
+  const archetypes = await prisma.siteArchetype.findMany({
+    where: { scenarioVersionId },
+    include: {
+      deploymentSchedule: {
+        orderBy: { yearIndex: 'asc' },
+      },
+    },
+  });
+
+  // Initialize counts
+  const deploymentsThisYear = {
+    sites: 0,
+    cus: 0,
+    dcs: 0,
+    dus: 0,
+    sitesByScopeId: {} as Record<string, number>,
+    cusByScopeId: {} as Record<string, number>,
+    dcsByScopeId: {} as Record<string, number>,
+    dusByScopeId: {} as Record<string, number>,
+  };
+
+  const cumulativeToYear = {
+    sites: 0,
+    cus: 0,
+    dcs: 0,
+    dus: 0,
+    sitesByScopeId: {} as Record<string, number>,
+    cusByScopeId: {} as Record<string, number>,
+    dcsByScopeId: {} as Record<string, number>,
+    dusByScopeId: {} as Record<string, number>,
+  };
+
+  for (const arch of archetypes) {
+    const hasSchedule = arch.deploymentSchedule && arch.deploymentSchedule.length > 0;
+    const dusPerSite = arch.numDusPerSite || 1;
+
+    if (forYear === undefined || !hasSchedule) {
+      // No year specified or no schedule - use total counts (backward compatible)
+      // For backward compatibility: all deployments in Year 0
+      if (forYear === undefined || forYear === 0) {
+        deploymentsThisYear.sites += arch.numSites;
+        deploymentsThisYear.cus += arch.numCus;
+        deploymentsThisYear.dcs += arch.numDcs;
+        deploymentsThisYear.dus += arch.numSites * dusPerSite;
+        deploymentsThisYear.sitesByScopeId[arch.id] = arch.numSites;
+        deploymentsThisYear.cusByScopeId[arch.id] = arch.numCus;
+        deploymentsThisYear.dcsByScopeId[arch.id] = arch.numDcs;
+        deploymentsThisYear.dusByScopeId[arch.id] = arch.numSites * dusPerSite;
+      } else {
+        // No deployments in years > 0 for archetypes without schedule
+        deploymentsThisYear.sitesByScopeId[arch.id] = 0;
+        deploymentsThisYear.cusByScopeId[arch.id] = 0;
+        deploymentsThisYear.dcsByScopeId[arch.id] = 0;
+        deploymentsThisYear.dusByScopeId[arch.id] = 0;
+      }
+
+      // Cumulative is always the full count for non-scheduled archetypes
+      cumulativeToYear.sites += arch.numSites;
+      cumulativeToYear.cus += arch.numCus;
+      cumulativeToYear.dcs += arch.numDcs;
+      cumulativeToYear.dus += arch.numSites * dusPerSite;
+      cumulativeToYear.sitesByScopeId[arch.id] = arch.numSites;
+      cumulativeToYear.cusByScopeId[arch.id] = arch.numCus;
+      cumulativeToYear.dcsByScopeId[arch.id] = arch.numDcs;
+      cumulativeToYear.dusByScopeId[arch.id] = arch.numSites * dusPerSite;
+    } else {
+      // Has deployment schedule - use per-year phasing
+      const schedule = arch.deploymentSchedule;
+
+      // Find deployments for this specific year
+      const thisYearSchedule = schedule.find(s => s.yearIndex === forYear);
+      if (thisYearSchedule) {
+        deploymentsThisYear.sites += thisYearSchedule.sitesDeployed;
+        deploymentsThisYear.cus += thisYearSchedule.cusDeployed;
+        deploymentsThisYear.dcs += thisYearSchedule.dcsDeployed;
+        deploymentsThisYear.dus += thisYearSchedule.sitesDeployed * dusPerSite;
+        deploymentsThisYear.sitesByScopeId[arch.id] = thisYearSchedule.sitesDeployed;
+        deploymentsThisYear.cusByScopeId[arch.id] = thisYearSchedule.cusDeployed;
+        deploymentsThisYear.dcsByScopeId[arch.id] = thisYearSchedule.dcsDeployed;
+        deploymentsThisYear.dusByScopeId[arch.id] = thisYearSchedule.sitesDeployed * dusPerSite;
+      } else {
+        deploymentsThisYear.sitesByScopeId[arch.id] = 0;
+        deploymentsThisYear.cusByScopeId[arch.id] = 0;
+        deploymentsThisYear.dcsByScopeId[arch.id] = 0;
+        deploymentsThisYear.dusByScopeId[arch.id] = 0;
+      }
+
+      // Calculate cumulative deployments up to and including this year
+      let cumSites = 0;
+      let cumCus = 0;
+      let cumDcs = 0;
+      for (const s of schedule) {
+        if (s.yearIndex <= forYear) {
+          cumSites += s.sitesDeployed;
+          cumCus += s.cusDeployed;
+          cumDcs += s.dcsDeployed;
+        }
+      }
+      cumulativeToYear.sites += cumSites;
+      cumulativeToYear.cus += cumCus;
+      cumulativeToYear.dcs += cumDcs;
+      cumulativeToYear.dus += cumSites * dusPerSite;
+      cumulativeToYear.sitesByScopeId[arch.id] = cumSites;
+      cumulativeToYear.cusByScopeId[arch.id] = cumCus;
+      cumulativeToYear.dcsByScopeId[arch.id] = cumDcs;
+      cumulativeToYear.dusByScopeId[arch.id] = cumSites * dusPerSite;
+    }
+  }
+
+  return { deploymentsThisYear, cumulativeToYear };
+}
+
+/** Scaling driver constants for type safety */
+const SCALING_DRIVERS = {
+  PER_SITE: 'per_site',
+  PER_CU: 'per_cu',
+  PER_DC: 'per_dc',
+  PER_DU: 'per_du',  // DU count = sites × numDusPerSite
+} as const;
+
+/** Buckets that scale by DU count instead of site count */
+const DU_SCALED_BUCKETS = ['cloud_per_du_at_site'];
+
+/**
+ * Calculate the multiplier based on driver, scope, and counts
  */
 function getMultiplier(
   driver: string,
   scopeType: string,
   scopeId: string | null,
-  counts: Awaited<ReturnType<typeof getScalingCounts>>
+  counts: {
+    sites: number;
+    cus: number;
+    dcs: number;
+    dus: number;
+    sitesByScopeId: Record<string, number>;
+    cusByScopeId: Record<string, number>;
+    dcsByScopeId: Record<string, number>;
+    dusByScopeId: Record<string, number>;
+  },
+  bucket?: string
 ): number {
+  // Check if this bucket should use DU scaling
+  if (bucket && DU_SCALED_BUCKETS.includes(bucket)) {
+    return scopeType === 'site_archetype' && scopeId
+      ? counts.dusByScopeId[scopeId] ?? 0
+      : counts.dus;
+  }
+
   switch (driver) {
-    case 'per_site':
+    case SCALING_DRIVERS.PER_SITE:
+      return scopeType === 'site_archetype' && scopeId
+        ? counts.sitesByScopeId[scopeId] ?? 0
+        : counts.sites;
+
+    case SCALING_DRIVERS.PER_CU:
+      return scopeType === 'site_archetype' && scopeId
+        ? counts.cusByScopeId[scopeId] ?? 0
+        : counts.cus;
+
+    case SCALING_DRIVERS.PER_DC:
       if (scopeType === 'site_archetype' && scopeId) {
-        return counts.sitesByScopeId[scopeId] || 0;
+        return counts.dcsByScopeId[scopeId] ?? 0;
       }
-      return counts.totalSites;
-    case 'per_cu':
-      if (scopeType === 'site_archetype' && scopeId) {
-        return counts.cusByScopeId[scopeId] || 0;
-      }
-      return counts.totalCus;
-    case 'per_dc':
-      if (scopeType === 'dc_type' && scopeId) {
-        return counts.dcCountsByScopeId[scopeId] || 0;
-      }
-      // Sum all DCs
-      return Object.values(counts.dcCountsByScopeId).reduce((a, b) => a + b, 0);
-    case 'per_server':
-    case 'per_cluster':
-    case 'per_license_unit':
-    case 'per_rapp':
-    case 'per_xapp':
-    case 'per_integration':
-      // These require specific count inputs; for now use 1 or stored value
-      return 1;
-    case 'fixed':
-      return 1;
-    case 'per_year':
-      return 1; // Will be applied per year
+      return counts.dcs;
+
+    case SCALING_DRIVERS.PER_DU:
+      return scopeType === 'site_archetype' && scopeId
+        ? counts.dusByScopeId[scopeId] ?? 0
+        : counts.dus;
+
     default:
       return 1;
   }
 }
 
 /**
- * Compute TCO for a scenario version
+ * Compute TCO for a scenario version with deployment schedule support
  */
 export async function computeTco(scenarioVersionId: string): Promise<ComputeSummary> {
-  const assumptions = await getModelAssumptions(scenarioVersionId);
-  const counts = await getScalingCounts(scenarioVersionId);
-  const inputFacts = await prisma.inputFact.findMany({
-    where: { scenarioVersionId, layer: { not: 'assumptions' } },
-  });
+  // Parallelize independent database queries for better performance
+  const [assumptions, inputFacts, adjustmentSets] = await Promise.all([
+    getModelAssumptions(scenarioVersionId),
+    prisma.inputFact.findMany({
+      where: { scenarioVersionId, layer: { not: 'assumptions' } },
+    }),
+    getActiveAdjustments(scenarioVersionId),
+  ]);
 
   const years = assumptions.tco_years;
   const discountRate = assumptions.discount_rate;
   const spreadYears = assumptions.perpetual_spread_years || 1;
+
+  // Collect all rules from active adjustment sets, sorted by priority
+  const allRules: AdjustmentRule[] = adjustmentSets.flatMap(set => set.rules);
+  allRules.sort((a, b) => a.priority - b.priority);
+
+  // Track adjustment metadata
+  const adjustmentTracker = new Map<string, { name: string; rulesApplied: number; totalImpact: number }>();
+  for (const set of adjustmentSets) {
+    adjustmentTracker.set(set.id, { name: set.name, rulesApplied: 0, totalImpact: 0 });
+  }
+
+  // Pre-fetch scaling counts for all years we need
+  const countsByYear: YearScalingCounts[] = [];
+  for (let y = 0; y < years; y++) {
+    countsByYear[y] = await getScalingCounts(scenarioVersionId, y);
+  }
 
   // Initialize year-by-year results
   const byYear: ComputeResult[] = [];
@@ -171,58 +463,129 @@ export async function computeTco(scenarioVersionId: string): Promise<ComputeSumm
   const byDayDomain: Record<string, { capex: number; opex: number; tco: number }> = {};
   const breakdown: ComputeBreakdown[] = [];
 
+  // Helper to get multiplier based on driver, scope, counts, and bucket
+  const getMultiplierForCounts = (
+    driver: string,
+    scopeType: string,
+    scopeId: string | null,
+    counts: YearScalingCounts['deploymentsThisYear'] | YearScalingCounts['cumulativeToYear'],
+    bucket?: string
+  ): number => {
+    // For this to work correctly, we need to include counts in the cache key
+    // But since counts change per year, we'll just compute directly
+    return getMultiplier(driver, scopeType, scopeId, counts, bucket);
+  };
+
+  // Track baseline TCO (before adjustments) if we have adjustments
+  let baselineTco: number | undefined;
+  if (allRules.length > 0) {
+    // We'll calculate this at the end
+    baselineTco = 0;
+  }
+
   // Process each input fact
   for (const fact of inputFacts) {
-    const multiplier = getMultiplier(fact.driver, fact.scopeType, fact.scopeId, counts);
-    const totalValue = fact.valueNumber * multiplier;
-    const isPerYear = fact.driver === 'per_year';
     const isPerpetual = fact.licenseModel === 'perpetual';
-    const isSubscription = fact.licenseModel === 'subscription';
 
-    // Determine CAPEX vs OPEX based on day and license model
-    let capex = 0;
-    let opex = 0;
+    // Apply adjustments to the fact's valueNumber
+    const { adjustedValue, appliedRules } = getAdjustedValue(
+      fact.valueNumber,
+      {
+        day: fact.day,
+        domain: fact.domain,
+        layer: fact.layer,
+        bucket: fact.bucket,
+        scopeType: fact.scopeType,
+        scopeId: fact.scopeId,
+      },
+      allRules
+    );
 
-    if (fact.day === 'day0' || fact.day === 'day1') {
-      // Day0/Day1 costs are CAPEX
-      if (isPerpetual && spreadYears > 1) {
-        // Spread perpetual CAPEX over years
-        capex = totalValue / spreadYears;
-      } else {
-        capex = totalValue;
+    // Track which adjustments were applied and their impact
+    if (appliedRules.length > 0) {
+      for (const rule of appliedRules) {
+        const tracker = adjustmentTracker.get(rule.adjustmentSetId);
+        if (tracker) {
+          tracker.rulesApplied++;
+          // Impact is the difference between adjusted and original
+          tracker.totalImpact += adjustedValue - fact.valueNumber;
+        }
       }
-    } else if (fact.day === 'day2') {
-      // Day2 costs are OPEX (recurring)
-      opex = totalValue;
     }
 
-    // Apply to years
+    // Use adjusted value for all calculations
+    const effectiveValue = adjustedValue;
+
+    // Process each year
     for (let y = 0; y < years; y++) {
+      const yearCounts = countsByYear[y];
       let yearCapex = 0;
       let yearOpex = 0;
 
       if (fact.day === 'day0' || fact.day === 'day1') {
-        // CAPEX in year 0 (or spread)
-        if (isPerpetual && spreadYears > 1) {
-          if (y < spreadYears) {
-            yearCapex = capex;
+        // Handle per_year_deployment driver specially
+        if (fact.driver === 'per_year_deployment') {
+          const hasDeploymentActivity =
+            yearCounts.deploymentsThisYear.sites > 0 ||
+            yearCounts.deploymentsThisYear.cus > 0 ||
+            yearCounts.deploymentsThisYear.dcs > 0;
+
+          if (hasDeploymentActivity) {
+            // Parse valueJson for year-specific value
+            const yearValues = safeJsonParse<Record<string, number>>(fact.valueJson, {});
+            yearCapex = yearValues[`year_${y}`] ?? 0;
           }
-        } else if (y === 0) {
-          yearCapex = capex;
-        }
-        
-        // Support/maintenance OPEX for perpetual licenses starts in year 0 or 1
-        if (isPerpetual && fact.layer === 'software') {
-          // Assume 15% of license cost for maintenance (can be configured)
-          yearOpex = totalValue * 0.15;
+          // If no deployment activity, yearCapex stays 0
+        } else if (fact.driver === 'per_integration') {
+          // Integration costs: effectiveValue × count, one-time in Year 0
+          if (y === 0) {
+            const data = safeJsonParse<{ count?: number }>(fact.valueJson, {});
+            const count = data.count ?? 1;
+            yearCapex = effectiveValue * count;
+          }
+          // Years > 0: no additional CAPEX for integrations
+        } else {
+          // CAPEX: Use deployments THIS year
+          const multiplier = getMultiplierForCounts(
+            fact.driver,
+            fact.scopeType,
+            fact.scopeId,
+            yearCounts.deploymentsThisYear,
+            fact.bucket
+          );
+          const totalValue = effectiveValue * multiplier;
+
+          if (isPerpetual && spreadYears > 1) {
+            // Spread perpetual CAPEX over years
+            if (y < spreadYears) {
+              yearCapex = totalValue / spreadYears;
+            }
+          } else {
+            yearCapex = totalValue;
+          }
+
+          // Support/maintenance OPEX for perpetual licenses (cumulative based)
+          if (isPerpetual && fact.layer === 'software') {
+            const opexMultiplier = getMultiplierForCounts(
+              fact.driver,
+              fact.scopeType,
+              fact.scopeId,
+              yearCounts.cumulativeToYear,
+              fact.bucket
+            );
+            yearOpex = effectiveValue * opexMultiplier * DefaultCostRates.SOFTWARE_PERPETUAL_MAINTENANCE_RATE;
+          }
         }
       } else if (fact.day === 'day2') {
-        // OPEX every year
-        if (isPerYear || isSubscription || fact.layer === 'site_opex' || fact.layer === 'staffing') {
-          yearOpex = opex;
-        } else {
-          yearOpex = opex;
-        }
+        // OPEX: Use CUMULATIVE deployments (you pay to operate all deployed assets)
+        const multiplier = getMultiplierForCounts(
+          fact.driver,
+          fact.scopeType,
+          fact.scopeId,
+          yearCounts.cumulativeToYear,
+          fact.bucket
+        );
+        yearOpex = effectiveValue * multiplier;
       }
 
       byYear[y].capex += yearCapex;
@@ -244,14 +607,54 @@ export async function computeTco(scenarioVersionId: string): Promise<ComputeSumm
       }
     }
 
-    // Aggregate by day/domain
+    // Aggregate by day/domain (using total cumulative counts for the summary)
+    // This represents the "steady state" annual cost at full deployment
+    const finalYearCounts = countsByYear[years - 1] || countsByYear[0];
+    let totalCapex = 0;
+    let totalOpex = 0;
+
+    if (fact.day === 'day0' || fact.day === 'day1') {
+      if (fact.driver === 'per_year_deployment') {
+        // Sum all year values from valueJson for total
+        const yearValues = safeJsonParse<Record<string, number>>(fact.valueJson, {});
+        for (let y = 0; y < years; y++) {
+          totalCapex += yearValues[`year_${y}`] ?? 0;
+        }
+      } else if (fact.driver === 'per_integration') {
+        // Integration costs: effectiveValue × count (one-time)
+        const data = safeJsonParse<{ count?: number }>(fact.valueJson, {});
+        const count = data.count ?? 1;
+        totalCapex = effectiveValue * count;
+      } else {
+        // For summary: use first year's deployment counts for CAPEX
+        const multiplier = getMultiplierForCounts(
+          fact.driver,
+          fact.scopeType,
+          fact.scopeId,
+          countsByYear[0].deploymentsThisYear,
+          fact.bucket
+        );
+        totalCapex = effectiveValue * multiplier;
+      }
+    } else if (fact.day === 'day2') {
+      // For summary: use final cumulative counts for annual OPEX rate
+      const multiplier = getMultiplierForCounts(
+        fact.driver,
+        fact.scopeType,
+        fact.scopeId,
+        finalYearCounts.cumulativeToYear,
+        fact.bucket
+      );
+      totalOpex = effectiveValue * multiplier;
+    }
+
     const key = `${fact.day}:${fact.domain}`;
     if (!byDayDomain[key]) {
       byDayDomain[key] = { capex: 0, opex: 0, tco: 0 };
     }
-    byDayDomain[key].capex += capex;
-    byDayDomain[key].opex += opex * years;
-    byDayDomain[key].tco += capex + opex * years;
+    byDayDomain[key].capex += totalCapex;
+    byDayDomain[key].opex += totalOpex;
+    byDayDomain[key].tco += totalCapex + totalOpex;
   }
 
   // Calculate NPV for each year
@@ -266,6 +669,19 @@ export async function computeTco(scenarioVersionId: string): Promise<ComputeSumm
   const totalTco = byYear.reduce((sum, yr) => sum + yr.tco, 0);
   const totalNpv = byYear.reduce((sum, yr) => sum + yr.npv, 0);
 
+  // Build adjustment metadata for the response
+  const adjustments: AdjustmentMetadata[] = [];
+  for (const [id, tracker] of adjustmentTracker.entries()) {
+    if (tracker.rulesApplied > 0) {
+      adjustments.push({
+        id,
+        name: tracker.name,
+        rulesApplied: tracker.rulesApplied,
+        totalImpact: tracker.totalImpact,
+      });
+    }
+  }
+
   return {
     totalCapex,
     totalOpex,
@@ -274,6 +690,8 @@ export async function computeTco(scenarioVersionId: string): Promise<ComputeSumm
     byYear,
     byDayDomain,
     breakdown,
+    adjustments: adjustments.length > 0 ? adjustments : undefined,
+    baselineTco,
   };
 }
 
@@ -341,4 +759,3 @@ export async function computeAndPersist(scenarioVersionId: string): Promise<Comp
 
   return summary;
 }
-

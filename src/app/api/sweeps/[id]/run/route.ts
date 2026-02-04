@@ -36,6 +36,9 @@ export async function POST(
     }
 
     const baseVersion = sweep.scenario.versions[0];
+    if (!baseVersion) {
+      return NextResponse.json({ error: 'Base version not found' }, { status: 404 });
+    }
     const parameters = JSON.parse(sweep.parameters);
 
     // Generate parameter combinations
@@ -44,6 +47,7 @@ export async function POST(
 
     for (let i = 0; i < combinations.length; i++) {
       const paramValues = combinations[i];
+      if (!paramValues) continue;
 
       // Create a new version for this run
       const newVersion = await prisma.scenarioVersion.create({
@@ -87,7 +91,10 @@ export async function POST(
         // Check if this fact should be modified
         for (const param of parameters) {
           if (fact.bucket === param.bucket) {
-            value = paramValues[param.bucket];
+            const paramValue = paramValues[param.bucket];
+            if (paramValue !== undefined) {
+              value = paramValue;
+            }
             break;
           }
         }
@@ -138,8 +145,7 @@ export async function POST(
     }
 
     return NextResponse.json({ sweepId: id, runs });
-  } catch (error) {
-    console.error('Error running sweep:', error);
+  } catch {
     return NextResponse.json({ error: 'Failed to run sweep' }, { status: 500 });
   }
 }
@@ -154,6 +160,7 @@ function generateCombinations(
 
   // Generate values for first parameter
   const param = parameters[0];
+  if (!param) return [{}];
   const step = (param.maxValue - param.minValue) / (param.steps - 1);
   const values: number[] = [];
 

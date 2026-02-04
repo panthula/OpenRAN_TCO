@@ -2,6 +2,55 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/client';
 import { computeAndPersist } from '@/lib/compute/engine';
 
+interface Change {
+  operation: 'update' | 'add' | 'delete';
+  bucket: string;
+  day?: string;           // Optional: for precise targeting
+  domain?: string;        // Optional: for precise targeting
+  scopeType?: string;     // Optional: for precise targeting
+  scopeId?: string;       // Optional: for specific scope
+  currentValue?: number;
+  proposedValue?: number;
+  percentageChange?: number; // e.g., -15 for 15% reduction
+  reason?: string;
+  inputData?: Record<string, unknown>; // For 'add' operations
+}
+
+// Check if a change matches a fact based on available criteria
+function changeMatchesFact(
+  change: Change,
+  fact: { bucket: string; day: string; domain: string; scopeType: string; scopeId: string | null }
+): boolean {
+  // Bucket must always match
+  if (change.bucket !== fact.bucket) return false;
+
+  // Optional: match by day if specified
+  if (change.day && change.day !== fact.day) return false;
+
+  // Optional: match by domain if specified
+  if (change.domain && change.domain !== fact.domain) return false;
+
+  // Optional: match by scopeType if specified
+  if (change.scopeType && change.scopeType !== fact.scopeType) return false;
+
+  // Optional: match by scopeId if specified (null matches null)
+  if (change.scopeId !== undefined && change.scopeId !== fact.scopeId) return false;
+
+  return true;
+}
+
+// Calculate the new value based on change type
+function calculateNewValue(change: Change, currentValue: number): number {
+  if (change.percentageChange !== undefined) {
+    // Percentage-based change (e.g., -15 = reduce by 15%)
+    return currentValue * (1 + change.percentageChange / 100);
+  } else if (change.proposedValue !== undefined) {
+    // Absolute value replacement
+    return change.proposedValue;
+  }
+  return currentValue;
+}
+
 // POST /api/agent/apply - Apply an approved change set
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +69,11 @@ export async function POST(request: NextRequest) {
           include: {
             scenario: true,
             inputFacts: true,
-            siteArchetypes: true,
+            siteArchetypes: {
+              include: {
+                deploymentSchedule: true,
+              },
+            },
             dcTypes: true,
           },
         },
@@ -39,25 +92,42 @@ export async function POST(request: NextRequest) {
     }
 
     const sourceVersion = changeSet.scenarioVersion;
-    const changes = JSON.parse(changeSet.changes);
+    let changes: Change[];
+    try {
+      changes = JSON.parse(changeSet.changes);
+    } catch (parseError) {
+      return NextResponse.json(
+        { error: 'Invalid change set data format' },
+        { status: 400 }
+      );
+    }
 
-    // Create new version
-    const newVersion = await prisma.scenarioVersion.create({
+    // Track applied changes for summary
+    const appliedChanges: { bucket: string; originalValue: number; newValue: number; change: string }[] = [];
+
+    // Create NEW scenario with its own version (instead of new version in same scenario)
+    const newScenario = await prisma.scenario.create({
       data: {
-        scenarioId: sourceVersion.scenarioId,
-        versionNum: sourceVersion.versionNum + 1,
-        description: `Applied agent changes: ${changeSet.rationale || 'AI optimization'}`,
-        isActive: true,
+        name: `${sourceVersion.scenario.name} - Agent Optimized`,
+        description: `Created from ${sourceVersion.scenario.name} via AI Agent`,
+        isBaseline: false,
+        parentId: sourceVersion.scenarioId,
+        versions: {
+          create: {
+            versionNum: 1,
+            description: `Applied agent changes: ${changeSet.rationale || 'AI optimization'}`,
+            isActive: true,
+          },
+        },
       },
+      include: { versions: true },
     });
 
-    // Mark old version as inactive
-    await prisma.scenarioVersion.update({
-      where: { id: sourceVersion.id },
-      data: { isActive: false },
-    });
+    const newVersion = newScenario.versions[0];
 
-    // Copy site archetypes
+    // DO NOT mark source version as inactive - leave baseline untouched
+
+    // Copy site archetypes with all fields and deployment schedules
     const archetypeIdMap: Record<string, string> = {};
     for (const arch of sourceVersion.siteArchetypes) {
       const newArch = await prisma.siteArchetype.create({
@@ -66,10 +136,26 @@ export async function POST(request: NextRequest) {
           name: arch.name,
           numSites: arch.numSites,
           numCus: arch.numCus,
+          numDcs: arch.numDcs,
+          numDusPerSite: arch.numDusPerSite,
           description: arch.description,
+          deploymentYears: arch.deploymentYears,
         },
       });
       archetypeIdMap[arch.id] = newArch.id;
+
+      // Copy deployment schedule
+      for (const depYear of arch.deploymentSchedule) {
+        await prisma.deploymentYear.create({
+          data: {
+            archetypeId: newArch.id,
+            yearIndex: depYear.yearIndex,
+            sitesDeployed: depYear.sitesDeployed,
+            cusDeployed: depYear.cusDeployed,
+            dcsDeployed: depYear.dcsDeployed,
+          },
+        });
+      }
     }
 
     // Copy DC types
@@ -88,17 +174,31 @@ export async function POST(request: NextRequest) {
 
     // Copy input facts with modifications
     for (const fact of sourceVersion.inputFacts) {
-      // Check if this fact should be modified
       let value = fact.valueNumber;
+      let shouldSkip = false;
+
+      // Check all changes to see if any match this fact
       for (const change of changes) {
-        if (change.bucket === fact.bucket) {
+        if (changeMatchesFact(change, fact)) {
           if (change.operation === 'update') {
-            value = change.proposedValue;
+            const newValue = calculateNewValue(change, fact.valueNumber);
+            appliedChanges.push({
+              bucket: fact.bucket,
+              originalValue: fact.valueNumber,
+              newValue,
+              change: change.percentageChange !== undefined
+                ? `${change.percentageChange}%`
+                : `$${fact.valueNumber} → $${newValue}`,
+            });
+            value = newValue;
           } else if (change.operation === 'delete') {
-            continue; // Skip this fact
+            shouldSkip = true;
+            break;
           }
         }
       }
+
+      if (shouldSkip) continue;
 
       // Map scope ID to new version
       let newScopeId = fact.scopeId;
@@ -134,11 +234,40 @@ export async function POST(request: NextRequest) {
     // Handle 'add' operations
     for (const change of changes) {
       if (change.operation === 'add' && change.inputData) {
+        const inputData = change.inputData as {
+          day: string;
+          domain: string;
+          layer: string;
+          bucket: string;
+          scopeType: string;
+          scopeId?: string;
+          driver: string;
+          valueNumber: number;
+          unit?: string;
+          currency?: string;
+          notes?: string;
+        };
         await prisma.inputFact.create({
           data: {
             scenarioVersionId: newVersion.id,
-            ...change.inputData,
+            day: inputData.day,
+            domain: inputData.domain,
+            layer: inputData.layer,
+            bucket: inputData.bucket,
+            scopeType: inputData.scopeType,
+            scopeId: inputData.scopeId || null,
+            driver: inputData.driver,
+            valueNumber: inputData.valueNumber,
+            unit: inputData.unit || 'USD',
+            currency: inputData.currency || 'USD',
+            notes: inputData.notes || null,
           },
+        });
+        appliedChanges.push({
+          bucket: change.bucket,
+          originalValue: 0,
+          newValue: inputData.valueNumber || 0,
+          change: 'Added new',
         });
       }
     }
@@ -158,8 +287,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      newScenarioId: newScenario.id,
+      newScenarioName: newScenario.name,
       newVersionId: newVersion.id,
       newVersionNum: newVersion.versionNum,
+      appliedChanges,
       computeResult: {
         totalCapex: result.totalCapex,
         totalOpex: result.totalOpex,
@@ -168,8 +300,11 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error applying changes:', error);
-    return NextResponse.json({ error: 'Failed to apply changes' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json(
+      { error: `Failed to apply changes: ${message}` },
+      { status: 500 }
+    );
   }
 }
 

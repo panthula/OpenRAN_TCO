@@ -39,8 +39,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(facts);
-  } catch (error) {
-    console.error('Error fetching input facts:', error);
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch input facts' }, { status: 500 });
   }
 }
@@ -97,8 +96,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(results);
   } catch (error) {
-    console.error('Error saving input facts:', error);
-
     // Handle Zod validation errors
     if (error instanceof ZodError) {
       const details = error.issues.map((e) => ({
@@ -161,8 +158,7 @@ export async function DELETE(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting input fact:', error);
+  } catch {
     return NextResponse.json({ error: 'Failed to delete input fact' }, { status: 500 });
   }
 }

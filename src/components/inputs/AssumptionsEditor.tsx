@@ -80,7 +80,6 @@ export function AssumptionsEditor() {
       // Clear success status after 3 seconds
       setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (error) {
-      console.error('Save failed:', error);
       setSaveStatus('error');
       setErrorMessage((error as Error).message || 'Failed to save assumptions');
       

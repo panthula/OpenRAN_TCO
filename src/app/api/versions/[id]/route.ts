@@ -11,10 +11,62 @@ export async function GET(
     const version = await prisma.scenarioVersion.findUnique({
       where: { id },
       include: {
-        scenario: true,
-        siteArchetypes: true,
-        dcTypes: true,
+        scenario: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            isBaseline: true,
+            parentId: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+        siteArchetypes: {
+          select: {
+            id: true,
+            name: true,
+            numSites: true,
+            numCus: true,
+            numDcs: true,
+            numDusPerSite: true,
+            description: true,
+            deploymentYears: true,
+            deploymentSchedule: {
+              orderBy: { yearIndex: 'asc' },
+              select: {
+                id: true,
+                yearIndex: true,
+                sitesDeployed: true,
+                cusDeployed: true,
+                dcsDeployed: true,
+              },
+            },
+          },
+        },
+        dcTypes: {
+          select: {
+            id: true,
+            name: true,
+            numDcs: true,
+            description: true,
+          },
+        },
         inputFacts: {
+          select: {
+            id: true,
+            day: true,
+            domain: true,
+            layer: true,
+            bucket: true,
+            scopeType: true,
+            scopeId: true,
+            driver: true,
+            valueNumber: true,
+            valueJson: true,
+            licenseModel: true,
+            notes: true,
+          },
           orderBy: [
             { day: 'asc' },
             { domain: 'asc' },
@@ -23,6 +75,19 @@ export async function GET(
           ],
         },
         computedFacts: {
+          select: {
+            id: true,
+            metric: true,
+            day: true,
+            domain: true,
+            layer: true,
+            bucket: true,
+            year: true,
+            capex: true,
+            opex: true,
+            tco: true,
+            npv: true,
+          },
           orderBy: { year: 'asc' },
         },
       },
@@ -33,8 +98,7 @@ export async function GET(
     }
 
     return NextResponse.json(version);
-  } catch (error) {
-    console.error('Error fetching version:', error);
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch version' }, { status: 500 });
   }
 }
