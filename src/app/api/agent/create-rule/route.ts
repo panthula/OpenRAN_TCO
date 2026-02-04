@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AdjustmentRule } from '@prisma/client';
 import prisma from '@/lib/db/client';
 
 interface Change {
@@ -138,7 +137,7 @@ export async function POST(request: NextRequest) {
       description: adjustmentSet.description,
       isActive: adjustmentSet.isActive,
       rulesCreated: adjustmentSet.rules.length,
-      rules: adjustmentSet.rules.map((rule: AdjustmentRule) => ({
+      rules: adjustmentSet.rules.map((rule: { id: string; targetBucket: string | null; adjustmentType: string; adjustmentValue: number; notes: string | null }) => ({
         id: rule.id,
         targetBucket: rule.targetBucket,
         adjustmentType: rule.adjustmentType,
