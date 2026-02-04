@@ -39,22 +39,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Build context for AI analysis
-    const totalSites = version.siteArchetypes.reduce((sum: number, a) => sum + a.numSites, 0);
-    const totalTco = version.computedFacts.reduce((sum: number, f) => sum + f.tco, 0);
-    const totalCapex = version.computedFacts.reduce((sum: number, f) => sum + f.capex, 0);
-    const totalOpex = version.computedFacts.reduce((sum: number, f) => sum + f.opex, 0);
+    const totalSites = version.siteArchetypes.reduce((sum: number, a: (typeof version.siteArchetypes)[number]) => sum + a.numSites, 0);
+    const totalTco = version.computedFacts.reduce((sum: number, f: (typeof version.computedFacts)[number]) => sum + f.tco, 0);
+    const totalCapex = version.computedFacts.reduce((sum: number, f: (typeof version.computedFacts)[number]) => sum + f.capex, 0);
+    const totalOpex = version.computedFacts.reduce((sum: number, f: (typeof version.computedFacts)[number]) => sum + f.opex, 0);
 
     const context: ScenarioContext = {
       scenarioName: version.scenario.name,
       versionNum: version.versionNum,
-      siteArchetypes: version.siteArchetypes.map((a) => ({
+      siteArchetypes: version.siteArchetypes.map((a: (typeof version.siteArchetypes)[number]) => ({
         name: a.name,
         numSites: a.numSites,
         numCus: a.numCus,
         numDcs: a.numDcs,
         deploymentYears: a.deploymentYears,
       })),
-      inputFacts: version.inputFacts.map((f) => ({
+      inputFacts: version.inputFacts.map((f: (typeof version.inputFacts)[number]) => ({
         day: f.day,
         domain: f.domain,
         layer: f.layer,
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
         driver: f.driver,
         scopeType: f.scopeType,
       })),
-      computedFacts: version.computedFacts.map((f) => ({
+      computedFacts: version.computedFacts.map((f: (typeof version.computedFacts)[number]) => ({
         year: f.year,
         capex: f.capex,
         opex: f.opex,
