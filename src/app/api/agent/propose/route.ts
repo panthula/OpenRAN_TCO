@@ -39,10 +39,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Build context for AI analysis
-    const totalSites = version.siteArchetypes.reduce((sum, a) => sum + a.numSites, 0);
-    const totalTco = version.computedFacts.reduce((sum, f) => sum + f.tco, 0);
-    const totalCapex = version.computedFacts.reduce((sum, f) => sum + f.capex, 0);
-    const totalOpex = version.computedFacts.reduce((sum, f) => sum + f.opex, 0);
+    const totalSites = version.siteArchetypes.reduce((sum: number, a) => sum + a.numSites, 0);
+    const totalTco = version.computedFacts.reduce((sum: number, f) => sum + f.tco, 0);
+    const totalCapex = version.computedFacts.reduce((sum: number, f) => sum + f.capex, 0);
+    const totalOpex = version.computedFacts.reduce((sum: number, f) => sum + f.opex, 0);
 
     const context: ScenarioContext = {
       scenarioName: version.scenario.name,

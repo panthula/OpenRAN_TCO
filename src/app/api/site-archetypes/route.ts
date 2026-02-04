@@ -42,9 +42,9 @@ export async function POST(request: NextRequest) {
     const deploymentSchedule = validated.deploymentSchedule;
 
     if (deploymentSchedule && deploymentSchedule.length > 0) {
-      numSites = deploymentSchedule.reduce((sum, y) => sum + y.sitesDeployed, 0);
-      numCus = deploymentSchedule.reduce((sum, y) => sum + y.cusDeployed, 0);
-      numDcs = deploymentSchedule.reduce((sum, y) => sum + y.dcsDeployed, 0);
+      numSites = deploymentSchedule.reduce((sum: number, y) => sum + y.sitesDeployed, 0);
+      numCus = deploymentSchedule.reduce((sum: number, y) => sum + y.cusDeployed, 0);
+      numDcs = deploymentSchedule.reduce((sum: number, y) => sum + y.dcsDeployed, 0);
     }
 
     let result;
