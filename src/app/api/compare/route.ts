@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     // For each scenario, get the computed summary from computed facts
     const comparisonData: ScenarioComparisonData[] = await Promise.all(
-      scenarios.map(async (scenario) => {
+      scenarios.map(async (scenario: (typeof scenarios)[number]) => {
         const activeVersion = scenario.versions[0];
         if (!activeVersion) {
           return {

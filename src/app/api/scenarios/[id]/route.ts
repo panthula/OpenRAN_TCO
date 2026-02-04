@@ -113,7 +113,7 @@ export async function POST(
     // Clone site archetypes using batch insert for better performance
     const archetypeIdMap: Record<string, string> = {};
     if (sourceVersion.siteArchetypes.length > 0) {
-      const archetypeData = sourceVersion.siteArchetypes.map(arch => ({
+      const archetypeData = sourceVersion.siteArchetypes.map((arch: (typeof sourceVersion.siteArchetypes)[number]) => ({
         scenarioVersionId: newVersionId,
         name: arch.name,
         numSites: arch.numSites,
@@ -132,7 +132,7 @@ export async function POST(
       });
 
       for (const oldArch of sourceVersion.siteArchetypes) {
-        const newArch = newArchetypes.find(a => a.name === oldArch.name);
+        const newArch = newArchetypes.find((a: (typeof newArchetypes)[number]) => a.name === oldArch.name);
         if (newArch) {
           archetypeIdMap[oldArch.id] = newArch.id;
         }
@@ -178,7 +178,7 @@ export async function POST(
       });
 
       for (const oldDc of sourceVersion.dcTypes) {
-        const newDc = newDcTypes.find(d => d.name === oldDc.name);
+        const newDc = newDcTypes.find((d: (typeof newDcTypes)[number]) => d.name === oldDc.name);
         if (newDc) {
           dcIdMap[oldDc.id] = newDc.id;
         }
@@ -186,7 +186,7 @@ export async function POST(
     }
 
     // Clone input facts with updated scope IDs
-    const inputFactsData = sourceVersion.inputFacts.map(fact => {
+    const inputFactsData = sourceVersion.inputFacts.map((fact: (typeof sourceVersion.inputFacts)[number]) => {
       let newScopeId = fact.scopeId;
       if (fact.scopeType === 'site_archetype' && fact.scopeId) {
         newScopeId = archetypeIdMap[fact.scopeId] || null;

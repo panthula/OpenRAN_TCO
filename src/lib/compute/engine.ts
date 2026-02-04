@@ -315,7 +315,7 @@ async function getScalingCounts(
       const schedule = arch.deploymentSchedule;
 
       // Find deployments for this specific year
-      const thisYearSchedule = schedule.find(s => s.yearIndex === forYear);
+      const thisYearSchedule = schedule.find((s: (typeof schedule)[number]) => s.yearIndex === forYear);
       if (thisYearSchedule) {
         deploymentsThisYear.sites += thisYearSchedule.sitesDeployed;
         deploymentsThisYear.cus += thisYearSchedule.cusDeployed;
@@ -439,7 +439,7 @@ export async function computeTco(scenarioVersionId: string): Promise<ComputeSumm
   const spreadYears = assumptions.perpetual_spread_years || 1;
 
   // Collect all rules from active adjustment sets, sorted by priority
-  const allRules: AdjustmentRule[] = adjustmentSets.flatMap(set => set.rules);
+  const allRules: AdjustmentRule[] = adjustmentSets.flatMap((set: AdjustmentSetWithRules) => set.rules);
   allRules.sort((a, b) => a.priority - b.priority);
 
   // Track adjustment metadata
