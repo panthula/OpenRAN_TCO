@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/client';
 import { ScenarioSchema } from '@/lib/model/validation';
 import { DefaultModelAssumptions } from '@/lib/model/taxonomy';
+import { handleApiError } from '@/lib/api/errors';
 
 // GET /api/scenarios - List all scenarios
 export async function GET() {
@@ -18,8 +19,7 @@ export async function GET() {
 
     return NextResponse.json(scenarios);
   } catch (error) {
-    console.error('Error fetching scenarios:', error);
-    return NextResponse.json({ error: 'Failed to fetch scenarios' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
@@ -50,7 +50,11 @@ export async function POST(request: NextRequest) {
     });
 
     // Create default model assumptions for the initial version
-    const versionId = scenario.versions[0].id;
+    const initialVersion = scenario.versions[0];
+    if (!initialVersion) {
+      return NextResponse.json({ error: 'Failed to create initial version' }, { status: 500 });
+    }
+    const versionId = initialVersion.id;
     await prisma.inputFact.createMany({
       data: [
         {
@@ -91,8 +95,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(scenario, { status: 201 });
   } catch (error) {
-    console.error('Error creating scenario:', error);
-    return NextResponse.json({ error: 'Failed to create scenario' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 

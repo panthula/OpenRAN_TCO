@@ -20,13 +20,46 @@ Day 0 covers all upfront cloud platform licensing costs.
 
 ### Cloud/CaaS Licensing
 
-| Bucket | Description | Driver |
-|--------|-------------|--------|
-| `cloud_per_du_at_site` | CaaS license per DU | per_site |
-| `cloud_per_cu_server` | CaaS license per CU | per_cu |
-| `cloud_per_oss_server` | CaaS license per OSS server | per_server |
-| `storage_licenses` | Storage platform licenses | fixed |
-| `cloud_platform_base` | Base platform license | fixed |
+The Cloud/CaaS Licensing section is organized into two collapsible groups:
+
+#### Platform Licenses (One-Time)
+
+Fixed one-time platform license costs applied in Year 0 only.
+
+| Bucket | Label | Driver | Cost Type |
+|--------|-------|--------|-----------|
+| `cloud_native_platform` | Cloud Native Platform (CNP) | fixed | One-time (Year 0) |
+| `cloud_native_orchestrator` | Cloud Native Orchestrator (CNO) | fixed | One-time (Year 0) |
+
+#### Unit Licenses
+
+Per-unit license costs that scale with deployment counts.
+
+| Bucket | Label | Driver | Cost Type |
+|--------|-------|--------|-----------|
+| `cloud_per_du_at_site` | Cloud License (per DU) | per_site | Per-unit |
+| `cloud_per_cu_server` | Cloud License (per CU) | per_cu | Per-unit |
+| `cloud_per_oss_server` | Cloud License (per OSS Server) | per_server | Per-unit |
+| `storage_licenses` | Storage Licenses | fixed | Per-unit |
+
+### Bucket Groups Configuration
+
+The bucket groups are defined in `taxonomy.ts`:
+
+```typescript
+export const CloudLicenseBucketGroups: BucketGroup[] = [
+  {
+    id: 'platform_licenses',
+    label: 'Platform Licenses (One-Time)',
+    buckets: ['cloud_native_platform', 'cloud_native_orchestrator'],
+  },
+  {
+    id: 'unit_licenses',
+    label: 'Unit Licenses',
+    buckets: ['cloud_per_du_at_site', 'cloud_per_cu_server', 'cloud_per_oss_server', 'storage_licenses'],
+  },
+];
+```
 
 ### License Model Options
 
@@ -54,11 +87,27 @@ Day 1 covers cluster deployment and integration service costs.
 | `cicd_pipeline_setup` | CI/CD pipeline configuration | fixed |
 | `observability_setup` | Observability baseline setup | fixed |
 
+### Deployment Services
+
+Network-wide cloud deployment support costs that vary by year. These use the `per_year_deployment` driver and are only applied in years with deployment activity.
+
+| Bucket | Description | Driver | Scope |
+|--------|-------------|--------|-------|
+| `cloud_deployment_support` | Cloud Deployment Support | per_year_deployment | network_global |
+| `other_cloud_caas_support` | Other Cloud/CaaS Support | per_year_deployment | network_global |
+
+**Input Method**: YearlyInputTable with per-year cost fields (Y1, Y2, Y3, etc.)
+
+**Data Storage**: Values stored in `InputFact.valueJson` as `{"year_0": 50000, "year_1": 60000, ...}`
+
+**Cost Application**: Only charged in years with deployments (sites/CUs/DCs > 0)
+
 ### Day 1 Cost Treatment
 
 All Day 1 Cloud costs are treated as **CAPEX**:
 - Full amount recognized in Year 0 (or first year of deployment)
 - No recurring component (these are one-time services)
+- **Deployment Services**: Applied per-year based on `valueJson` values, only in deployment years
 
 ### Scaling Examples
 
@@ -90,13 +139,14 @@ Day 2 covers all recurring platform operations and license support costs.
 
 Annual cloud platform support (if perpetual) or subscription:
 
-| Bucket | Description | Driver |
-|--------|-------------|--------|
-| `cloud_per_du_at_site` | CaaS support per DU | per_site per year |
-| `cloud_per_cu_server` | CaaS support per CU | per_cu per year |
-| `cloud_per_oss_server` | CaaS support per OSS server | per_server per year |
-| `storage_licenses` | Storage support | fixed per year |
-| `cloud_platform_base` | Base platform support | fixed per year |
+| Bucket | Label | Driver |
+|--------|-------|--------|
+| `cloud_native_platform` | Cloud Native Platform (CNP) | fixed per year |
+| `cloud_native_orchestrator` | Cloud Native Orchestrator (CNO) | fixed per year |
+| `cloud_per_du_at_site` | Cloud License (per DU) | per_site per year |
+| `cloud_per_cu_server` | Cloud License (per CU) | per_cu per year |
+| `cloud_per_oss_server` | Cloud License (per OSS Server) | per_server per year |
+| `storage_licenses` | Storage Licenses | fixed per year |
 
 ### Day 2 Cost Treatment
 
@@ -116,29 +166,57 @@ Typical support rates:
 
 ## Cloud $ Summary Tab
 
-The **Cloud $ Summary** tab provides a consolidated view of all Cloud costs:
+The **Cloud $ Summary** tab provides a consolidated view of all Cloud costs using a dedicated Cloud-specific component with Cloud-centric category groupings.
 
-### Network Counts Display
-- **Total Sites**: Sum of `numSites` across all site archetypes
-- **Total CUs**: Sum of `numCus` across all site archetypes
-- **Total DCs**: Sum of `numDcs` across all DC types
-
-### Cost Rollups
+### Summary Header
 
 | Section | Description | Value Type |
 |---------|-------------|------------|
 | **One-Time Total** | Day 0 + Day 1 combined | Network-scaled |
 | **Annual Run-Rate** | Day 2 recurring costs | Per year |
 
-### Per-Day Breakdown Tables
+### Deployment Counts Display
 
-Each day shows a breakdown by driver type:
-- **Per-Site Costs**: Unit value × Total Sites
-- **Per-DC Costs**: Unit value × Total DCs
-- **Fixed Costs**: One-time amounts
-- **Annual Costs**: Per-year recurring
+- **Total DCs**: Sum of `numDcs` across all site archetypes
+- **Total Sites (DU)**: Sum of `numSites` across all site archetypes
+- **Total CUs**: Sum of `numCus` across all site archetypes
 
-**Component Location**: `src/components/summary/DomainDollarSummary.tsx`
+### Cloud-Specific Cost Categories
+
+#### Day 0 - Licensing & Design
+
+| Category | Buckets | Description |
+|----------|---------|-------------|
+| **Platform Licenses (One-Time)** | `cloud_native_platform`, `cloud_native_orchestrator` | One-time platform license costs |
+| **Unit Licenses** | `cloud_per_du_at_site`, `cloud_per_cu_server`, `cloud_per_oss_server`, `storage_licenses` | Per-unit license costs that scale with deployments |
+| **Cloud Design Services** | `cloud_design`, `cloud_architecture` | One-time cloud design and architecture planning |
+
+#### Day 1 - Deployment & Integration
+
+| Category | Buckets | Description |
+|----------|---------|-------------|
+| **Cluster Services (per DC)** | `cloud_deployment_services`, `cluster_bringup`, `cicd_pipeline_setup`, `observability_setup` | Per-DC cluster deployment costs |
+| **Deployment Services (Network-wide)** | `cloud_deployment_support`, `other_cloud_caas_support` | Network-wide deployment support (per_year_deployment driver) |
+
+#### Day 2 - Operations (Annual)
+
+| Category | Buckets | Description |
+|----------|---------|-------------|
+| **Platform Operations** | `observability_ops`, `cicd_ops`, `security_ops`, `backup_dr` | Annual platform operations costs |
+| **License Support** | Same as Day 0 license buckets | Annual license support costs |
+
+### Grand Total Rollup
+
+The summary includes a rollup table showing:
+- **Scope**: Network Global or Site Archetype name
+- **DCs**: Number of data centers (for archetypes)
+- **Sites**: Number of sites (for archetypes)
+- **CUs**: Number of CUs (for archetypes)
+- **Day 0**: Total Day 0 costs
+- **Day 1**: Total Day 1 costs
+- **Day 2 (/yr)**: Annual Day 2 costs
+
+**Component Location**: `src/components/cloud/CloudDollarSummary.tsx`
 
 ---
 
@@ -147,9 +225,10 @@ Each day shows a breakdown by driver type:
 ```typescript
 // src/app/(main)/cloud/page.tsx
 
-import { DomainDollarSummary } from '@/components/summary/DomainDollarSummary';
+import { CloudDollarSummary } from '@/components/cloud/CloudDollarSummary';
 
 const cloudServicesBuckets = [
+  'cloud_deployment_services',
   'cluster_bringup',
   'cicd_pipeline_setup',
   'observability_setup',
@@ -173,10 +252,10 @@ export default function CloudPage() {
       {/* Day 0 Inputs */}
       {activeDay === 'day0' && (
         <Card title="Cloud/CaaS Licensing">
-          <InputTable 
-            day="day0" 
-            domain="cloud" 
-            layer="software" 
+          <InputTable
+            day="day0"
+            domain="cloud"
+            layer="software"
             buckets={CloudLicenseBuckets}
           />
         </Card>
@@ -185,10 +264,10 @@ export default function CloudPage() {
       {/* Day 1 Inputs */}
       {activeDay === 'day1' && (
         <Card title="Cluster Bring-up & Integration">
-          <InputTable 
-            day="day1" 
-            domain="cloud" 
-            layer="services" 
+          <InputTable
+            day="day1"
+            domain="cloud"
+            layer="services"
             buckets={cloudServicesBuckets}
           />
         </Card>
@@ -206,11 +285,24 @@ export default function CloudPage() {
         </>
       )}
 
-      {/* Cloud $ Summary */}
-      {activeDay === 'cloud_summary' && <DomainDollarSummary domain="cloud" />}
+      {/* Cloud $ Summary - Uses dedicated Cloud-specific component */}
+      {activeDay === 'cloud_summary' && <CloudDollarSummary />}
     </div>
   );
 }
+```
+
+### File Structure
+
+```
+src/components/
+├── cloud/
+│   └── CloudDollarSummary.tsx    # Cloud-specific summary component
+├── ran/
+│   └── RanDollarSummary.tsx      # RAN-specific summary (if exists)
+└── summary/
+    ├── DomainDollarSummary.tsx   # Generic domain summary (used by OSS)
+    └── YearlyCostBreakdown.tsx   # Shared yearly breakdown component
 ```
 
 ---

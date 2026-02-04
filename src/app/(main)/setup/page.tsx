@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import { Cog, Network, Building2 } from 'lucide-react';
+import { Cog, Network, SlidersHorizontal } from 'lucide-react';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { SiteArchetypeEditor } from '@/components/inputs/SiteArchetypeEditor';
-import { DcTypeEditor } from '@/components/inputs/DcTypeEditor';
 import { AssumptionsEditor } from '@/components/inputs/AssumptionsEditor';
+import { AdjustmentPanel } from '@/components/inputs/AdjustmentPanel';
 
 export default function SetupPage() {
   return (
@@ -31,13 +31,23 @@ export default function SetupPage() {
           <h2 className="text-lg font-semibold text-gray-200">Network Topology</h2>
         </div>
         <p className="text-sm text-gray-400">
-          Define site archetypes and data center types that will be used across all domain inputs.
+          Define site archetypes with site counts, CU allocations, and DC configurations.
         </p>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <SiteArchetypeEditor />
-          <DcTypeEditor />
+
+        <SiteArchetypeEditor />
+      </div>
+
+      {/* What-If Adjustments Section */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal className="w-5 h-5 text-purple-400" />
+          <h2 className="text-lg font-semibold text-gray-200">What-If Adjustments</h2>
         </div>
+        <p className="text-sm text-gray-400">
+          Define adjustment rules to model scenario variations and what-if analysis.
+        </p>
+
+        <AdjustmentPanel />
       </div>
 
       {/* Info Card */}
@@ -60,14 +70,14 @@ export default function SetupPage() {
                 <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 text-xs font-bold">2</div>
                 <p className="text-gray-300 font-medium">Site Archetypes</p>
               </div>
-              <p className="text-xs text-gray-500">Define site types (Urban, Rural, etc.) with site counts and CU allocations.</p>
+              <p className="text-xs text-gray-500">Define site types (Urban, Rural, etc.) with site counts, CU allocations, and DC counts.</p>
             </div>
             <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center text-green-400 text-xs font-bold">3</div>
-                <p className="text-gray-300 font-medium">DC Types</p>
+                <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400 text-xs font-bold">3</div>
+                <p className="text-gray-300 font-medium">What-If Adjustments</p>
               </div>
-              <p className="text-xs text-gray-500">Configure Edge, Regional, and Central data center quantities.</p>
+              <p className="text-xs text-gray-500">Create adjustment sets to model cost variations and scenario analysis.</p>
             </div>
           </div>
         </CardContent>

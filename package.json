@@ -13,6 +13,7 @@
     "@prisma/client": "^7.2.0",
     "@tanstack/react-table": "^8.21.3",
     "@types/better-sqlite3": "^7.6.13",
+    "@types/react-window": "^1.8.8",
     "better-sqlite3": "^12.5.0",
     "dotenv": "^17.2.3",
     "lucide-react": "^0.562.0",
@@ -20,6 +21,7 @@
     "prisma": "^7.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-window": "^2.2.5",
     "recharts": "^3.6.0",
     "zod": "^4.3.5",
     "zustand": "^5.0.9"

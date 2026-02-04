@@ -7,7 +7,7 @@ This document provides a comprehensive overview of the OpenRAN TCO Modeler appli
 ### Technology Stack
 
 - **Frontend**: Next.js 14+ (App Router) with TypeScript
-- **Styling**: Tailwind CSS with custom design system
+- **Styling**: Tailwind CSS with Rakuten brand colors (see [Design System](./11-DESIGN-SYSTEM.md))
 - **State Management**: Zustand
 - **Database**: SQLite via Prisma ORM (can be migrated to PostgreSQL)
 - **Charts**: Recharts
@@ -31,7 +31,6 @@ tco-app/
 │   │   │   ├── versions/      # Version management
 │   │   │   ├── input-facts/   # Input data CRUD
 │   │   │   ├── site-archetypes/
-│   │   │   ├── dc-types/
 │   │   │   ├── compute/       # TCO computation
 │   │   │   └── computed-facts/
 │   │   ├── globals.css        # Global styles
@@ -51,10 +50,9 @@ tco-app/
 │   │   ├── inputs/            # Input-specific components
 │   │   │   ├── InputTable.tsx      # Table with totals display
 │   │   │   ├── SiteArchetypeEditor.tsx
-│   │   │   ├── DcTypeEditor.tsx
 │   │   │   └── AssumptionsEditor.tsx
-│   │   └── ran/               # RAN domain components
-│   │       └── RanDollarSummary.tsx  # RAN cost summary view
+│   │   └── summary/           # Summary components
+│   │       └── DomainDollarSummary.tsx  # Domain cost summary view
 │   └── lib/
 │       ├── model/             # Data model definitions
 │       │   ├── taxonomy.ts    # Bucket keys, domains, etc.
@@ -78,7 +76,7 @@ The UI is organized by **domain** (product/business team perspective), with each
 
 ```
 Sidebar Navigation:
-├── Setup              → Global settings (assumptions, site archetypes, DC types)
+├── Setup              → Global settings (assumptions, site archetypes)
 ├── RAN                → Radio Access Network inputs
 │   ├── Day 0 Tab      → Hardware BoM, SW /Site, SW/ DC
 │   ├── Day 1 Tab      → Installation, Testing & Acceptance
@@ -100,7 +98,13 @@ Sidebar Navigation:
 
 The `InputTable` component provides:
 - **Table Total**: Displays sum of all values in header area
-- **Scope Group Subtotals**: Shows subtotals per archetype/DC type in group headers
+- **Scope Group Subtotals**: Shows subtotals per archetype in group headers
+- **Collapsible Sections**: Scope groups (archetypes) are collapsible with chevron icons
+  - Default: All groups collapsed on initial load
+  - Click header row to toggle expand/collapse
+  - Subtotals remain visible when collapsed
+  - Item count shown when collapsed (e.g., "9 items")
+  - "Expand All" / "Collapse All" buttons in header
 - **Clean Numeric Inputs**: Number fields without spinner controls
 
 ## Data Flow
@@ -153,7 +157,7 @@ Every input is stored with 6 dimensional keys:
 - **Domain**: ran, cloud, oss
 - **Layer**: hardware_bom, software, services, staffing, site_opex, lifecycle, assumptions
 - **Bucket**: Standardized cost category (e.g., `du_server`, `radios`)
-- **ScopeType**: site_archetype, dc_type, network_global
+- **ScopeType**: site_archetype, network_global
 - **Driver**: Scaling factor (per_site, per_cu, per_dc, fixed, etc.)
 
 ### 3. Domain-First Organization
@@ -168,16 +172,46 @@ The UI is organized by domain to match how product/business teams think about in
 
 Each domain page contains tabs for Day 0 (procurement), Day 1 (deployment), and Day 2 (operations).
 
-### 4. Compute Engine
+### 4. Deployment Schedules
+
+Archetypes support **phased deployment** over multiple years:
+- **Deployment Years**: 1-10 year rollout schedules
+- **Per-Year Counts**: Sites, CUs, and DCs deployed each year
+- **Totals**: Derived automatically from schedule (read-only)
+
+Example:
+```
+Urban Macro Archetype (3-year rollout):
+  Year 1: 500 sites, 2 CUs, 1 DC
+  Year 2: 300 sites, 1 CU, 1 DC
+  Year 3: 200 sites, 1 CU, 1 DC
+  Total:  1000 sites, 4 CUs, 3 DCs (derived)
+```
+
+**Cost Phasing**:
+- Day 0/1 CAPEX: Uses deployments **this year** (phased)
+- Day 2 OPEX: Uses **cumulative** deployments (you operate all deployed assets)
+
+### 5. Compute Engine
 
 Located in `src/lib/compute/engine.ts`:
 - Reads all InputFacts for a version
-- Applies scaling rules based on site/CU/DC counts
+- Loads deployment schedules for per-year phasing
+- Applies scaling rules based on site/CU/DC counts (per-year or cumulative)
 - Phases costs into CAPEX (Day0/1) and OPEX (Day2)
 - Calculates NPV using discount rate
 - Stores results in ComputedFact table
+- Uses safe JSON parsing to handle malformed data gracefully
 
-### 5. Agent Workflow
+### 6. Dashboard Error Handling
+
+The Dashboard (`src/app/(main)/dashboard/page.tsx`) includes robust error handling:
+- Reads the `error` state from the Zustand store
+- Displays computation errors in a red error card
+- Logs errors to the browser console for debugging
+- Prevents silent failures when "Compute TCO" is clicked
+
+### 7. Agent Workflow
 
 - User asks questions or requests optimizations
 - Agent analyzes current scenario data
@@ -198,7 +232,6 @@ Located in `src/lib/compute/engine.ts`:
 | `/api/input-facts` | GET | Query input facts (with filters) |
 | `/api/input-facts` | POST | Create/update input facts |
 | `/api/site-archetypes` | GET/POST/DELETE | Manage site archetypes |
-| `/api/dc-types` | GET/POST | Manage DC types |
 | `/api/compute` | POST | Compute TCO for a version |
 | `/api/computed-facts` | GET | Query computed results |
 
@@ -210,7 +243,7 @@ Located in `src/lib/compute/engine.ts`:
 | `src/app/(main)/ran/page.tsx` | RAN domain inputs (Day 0/1/2 + Summary) |
 | `src/app/(main)/cloud/page.tsx` | Cloud domain inputs (Day 0/1/2) |
 | `src/app/(main)/oss/page.tsx` | OSS domain inputs (Day 0/1/2 + Staffing) |
-| `src/components/ran/RanDollarSummary.tsx` | RAN cost summary with network scaling |
+| `src/components/summary/DomainDollarSummary.tsx` | Domain cost summary with network scaling |
 | `src/components/inputs/InputTable.tsx` | Reusable input table with totals |
 | `src/lib/model/taxonomy.ts` | All bucket keys, domains, layers, drivers |
 | `src/lib/model/validation.ts` | Zod schemas for input validation |

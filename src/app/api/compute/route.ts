@@ -1,22 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { computeAndPersist } from '@/lib/compute/engine';
+import prisma from '@/lib/db/client';
+import { handleApiError, ApiErrors } from '@/lib/api/errors';
+
+const ComputeRequestSchema = z.object({
+  scenarioVersionId: z.string().min(1, 'scenarioVersionId is required'),
+});
 
 // POST /api/compute - Compute TCO for a scenario version
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { scenarioVersionId } = body;
 
-    if (!scenarioVersionId) {
-      return NextResponse.json({ error: 'scenarioVersionId is required' }, { status: 400 });
+    // Validate request body
+    const validation = ComputeRequestSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Invalid request', details: validation.error.issues },
+        { status: 400 }
+      );
+    }
+
+    const { scenarioVersionId } = validation.data;
+
+    // Verify scenario version exists
+    const version = await prisma.scenarioVersion.findUnique({
+      where: { id: scenarioVersionId },
+    });
+
+    if (!version) {
+      throw ApiErrors.notFound('Scenario version');
     }
 
     const result = await computeAndPersist(scenarioVersionId);
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error computing TCO:', error);
-    return NextResponse.json({ error: 'Failed to compute TCO' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 

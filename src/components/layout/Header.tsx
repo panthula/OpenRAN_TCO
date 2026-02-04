@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Radio, Plus, Copy, ChevronDown, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { Radio, Plus, Copy, ChevronDown, Loader2, Trash2 } from 'lucide-react';
 import { useScenarioStore } from '@/lib/store/scenario-store';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -17,6 +18,7 @@ export function Header() {
     fetchVersionData,
     createScenario,
     cloneScenario,
+    deleteScenario,
   } = useScenarioStore();
 
   const [showNewModal, setShowNewModal] = useState(false);
@@ -24,6 +26,10 @@ export function Header() {
   const [showScenarioMenu, setShowScenarioMenu] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const displayedScenarios = scenarios.slice(0, 4);
+  const hasMoreScenarios = scenarios.length > 4;
 
   const handleCreateScenario = async () => {
     if (!newName.trim()) return;
@@ -42,10 +48,23 @@ export function Header() {
 
   const handleSelectScenario = async (scenario: typeof scenarios[0]) => {
     setCurrentScenario(scenario);
-    if (scenario.versions.length > 0) {
-      await fetchVersionData(scenario.versions[0].id);
+    const firstVersion = scenario.versions[0];
+    if (firstVersion) {
+      await fetchVersionData(firstVersion.id);
     }
     setShowScenarioMenu(false);
+  };
+
+  const handleDeleteScenario = async (e: React.MouseEvent, scenarioId: string) => {
+    e.stopPropagation();
+    if (confirm('Are you sure you want to delete this scenario? This action cannot be undone.')) {
+      setDeletingId(scenarioId);
+      try {
+        await deleteScenario(scenarioId);
+      } finally {
+        setDeletingId(null);
+      }
+    }
   };
 
   return (
@@ -55,7 +74,7 @@ export function Header() {
           {/* Logo and title */}
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500 to-purple-500">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-red-700 to-purple-900">
                 <Radio className="w-5 h-5 text-white" />
               </div>
               <div>
@@ -70,14 +89,14 @@ export function Header() {
             <div className="relative">
               <button
                 onClick={() => setShowScenarioMenu(!showScenarioMenu)}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg hover:border-cyan-500 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg hover:border-red-700 transition-colors"
               >
-                {isLoading && <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />}
+                {isLoading && <Loader2 className="w-4 h-4 animate-spin text-red-600" />}
                 <span className="text-sm text-gray-300">
                   {currentScenario ? currentScenario.name : 'Select Scenario'}
                 </span>
                 {currentVersion && (
-                  <span className="px-2 py-0.5 text-xs bg-gray-700 rounded text-cyan-400">
+                  <span className="px-2 py-0.5 text-xs bg-gray-700 rounded text-red-500">
                     v{currentVersion.versionNum}
                   </span>
                 )}
@@ -93,29 +112,58 @@ export function Header() {
                     {scenarios.length === 0 ? (
                       <p className="px-4 py-3 text-sm text-gray-500">No scenarios yet</p>
                     ) : (
-                      scenarios.map((scenario) => (
-                        <button
+                      displayedScenarios.map((scenario) => (
+                        <div
                           key={scenario.id}
-                          onClick={() => handleSelectScenario(scenario)}
-                          className={`w-full px-4 py-3 text-left hover:bg-gray-800 transition-colors ${
+                          className={`group flex items-center justify-between px-4 py-3 hover:bg-gray-800 transition-colors ${
                             currentScenario?.id === scenario.id ? 'bg-gray-800' : ''
                           }`}
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-200">{scenario.name}</span>
-                            {scenario.isBaseline && (
-                              <span className="px-2 py-0.5 text-xs bg-cyan-500/20 text-cyan-400 rounded">
-                                Baseline
-                              </span>
+                          <button
+                            onClick={() => handleSelectScenario(scenario)}
+                            className="flex-1 text-left"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-200">{scenario.name}</span>
+                              {scenario.isBaseline && (
+                                <span className="px-2 py-0.5 text-xs bg-red-700/20 text-red-500 rounded">
+                                  Baseline
+                                </span>
+                              )}
+                            </div>
+                            {scenario.description && (
+                              <p className="text-xs text-gray-500 mt-1">{scenario.description}</p>
                             )}
-                          </div>
-                          {scenario.description && (
-                            <p className="text-xs text-gray-500 mt-1">{scenario.description}</p>
-                          )}
-                        </button>
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteScenario(e, scenario.id)}
+                            disabled={deletingId === scenario.id}
+                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-gray-700 rounded opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
+                            title="Delete scenario"
+                          >
+                            {deletingId === scenario.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
                       ))
                     )}
                   </div>
+                  {hasMoreScenarios && (
+                    <>
+                      <div className="border-t border-gray-700" />
+                      <Link
+                        href="/scenarios"
+                        onClick={() => setShowScenarioMenu(false)}
+                        className="flex items-center justify-between px-4 py-3 text-sm text-red-500 hover:bg-gray-800 transition-colors"
+                      >
+                        <span>Manage All Scenarios</span>
+                        <span className="px-2 py-0.5 text-xs bg-gray-700 rounded">{scenarios.length}</span>
+                      </Link>
+                    </>
+                  )}
                 </div>
               )}
             </div>

@@ -1,37 +1,37 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Bot, Send, Sparkles, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bot, Send, Sparkles, CheckCircle, XCircle, AlertCircle, Loader2, Save, Trash2 } from 'lucide-react';
 import { useScenarioStore } from '@/lib/store/scenario-store';
-import { Card, CardHeader, CardContent } from '@/components/ui/Card';
+import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  changeSet?: ChangeProposal;
-}
-
-interface ChangeProposal {
-  id: string;
-  changes: {
-    bucket: string;
-    currentValue: number;
-    proposedValue: number;
-    reason: string;
-  }[];
-  status: 'proposed' | 'approved' | 'rejected';
-}
-
 export default function AgentPage() {
-  const { currentScenario, currentVersion, computedSummary } = useScenarioStore();
+  const {
+    currentScenario,
+    currentVersion,
+    computedSummary,
+    fetchVersionData,
+    fetchScenarios,
+    computeTco,
+    agentMessages,
+    agentIsProcessing,
+    addAgentMessage,
+    updateAgentMessage,
+    clearAgentMessages,
+    setAgentProcessing,
+  } = useScenarioStore();
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: `Hello! I'm your TCO Analysis Agent. I can help you:
+  const [input, setInput] = useState('');
+
+  // Initialize welcome message when version is available and no messages exist
+  useEffect(() => {
+    if (agentMessages.length === 0 && currentVersion) {
+      addAgentMessage({
+        id: `welcome-${Date.now()}`,
+        versionId: currentVersion.id,
+        role: 'assistant',
+        content: `Hello! I'm your TCO Analysis Agent. I can help you:
 
 • **Analyze** your current TCO model and identify cost drivers
 • **Compare** scenarios and highlight differences
@@ -39,58 +39,213 @@ export default function AgentPage() {
 • **Run** sensitivity analysis on key parameters
 
 What would you like to explore?`,
-    },
-  ]);
-  const [input, setInput] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+        timestamp: Date.now(),
+      });
+    }
+  }, [currentVersion?.id, agentMessages.length, addAgentMessage]);
+
+  const [showRuleModal, setShowRuleModal] = useState(false);
+  const [selectedChangeSetId, setSelectedChangeSetId] = useState<string | null>(null);
+  const [ruleName, setRuleName] = useState('');
+  const [ruleDescription, setRuleDescription] = useState('');
+  const [makeRuleActive, setMakeRuleActive] = useState(true);
+  const [isCreatingRule, setIsCreatingRule] = useState(false);
 
   const handleSend = async () => {
-    if (!input.trim() || isProcessing) return;
+    if (!input.trim() || agentIsProcessing || !currentVersion) return;
 
-    const userMessage: Message = {
+    const userMessage = {
       id: Date.now().toString(),
-      role: 'user',
+      versionId: currentVersion.id,
+      role: 'user' as const,
       content: input,
+      timestamp: Date.now(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    addAgentMessage(userMessage);
+    const promptText = input;
     setInput('');
-    setIsProcessing(true);
+    setAgentProcessing(true);
 
-    // Simulate AI response (in production, this would call OpenAI/Claude API)
-    setTimeout(() => {
-      const assistantMessage: Message = {
+    try {
+      const response = await fetch('/api/agent/propose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scenarioVersionId: currentVersion.id,
+          prompt: promptText,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response from agent');
+      }
+
+      const data = await response.json();
+
+      const assistantMessage = {
         id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: generateMockResponse(input, computedSummary),
-        changeSet: input.toLowerCase().includes('optimize') || input.toLowerCase().includes('reduce')
-          ? generateMockChangeSet()
+        versionId: currentVersion.id,
+        role: 'assistant' as const,
+        content: data.content,
+        changeSet: data.changeSet
+          ? {
+              id: data.changeSet.id,
+              changes: data.changeSet.changes,
+              status: 'proposed' as const,
+            }
           : undefined,
+        timestamp: Date.now(),
       };
-      setMessages((prev) => [...prev, assistantMessage]);
-      setIsProcessing(false);
-    }, 1500);
+
+      addAgentMessage(assistantMessage);
+    } catch (error) {
+      const errorMessage = {
+        id: (Date.now() + 1).toString(),
+        versionId: currentVersion.id,
+        role: 'assistant' as const,
+        content: `Sorry, I encountered an error: ${(error as Error).message}. Please try again.`,
+        timestamp: Date.now(),
+      };
+      addAgentMessage(errorMessage);
+    } finally {
+      setAgentProcessing(false);
+    }
   };
 
-  const handleApproveChanges = (changeSetId: string) => {
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.changeSet?.id === changeSetId
-          ? { ...msg, changeSet: { ...msg.changeSet, status: 'approved' as const } }
-          : msg
-      )
-    );
-    // In production: Apply changes via API and trigger recompute
+  const handleApproveChanges = async (changeSetId: string) => {
+    // Find the message with this changeSet
+    const messageWithChangeSet = agentMessages.find((msg) => msg.changeSet?.id === changeSetId);
+    if (!messageWithChangeSet) return;
+
+    // Set status to applying
+    updateAgentMessage(messageWithChangeSet.id, {
+      changeSet: { ...messageWithChangeSet.changeSet!, status: 'applying' as const },
+    });
+
+    try {
+      const response = await fetch('/api/agent/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ changeSetId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to apply changes');
+      }
+
+      const result = await response.json();
+
+      // Calculate TCO delta
+      const previousTco = computedSummary?.totalTco || 0;
+      const newTco = result.computeResult.totalTco;
+      const tcoDelta = newTco - previousTco;
+
+      // Update message with success status
+      updateAgentMessage(messageWithChangeSet.id, {
+        changeSet: {
+          ...messageWithChangeSet.changeSet!,
+          status: 'approved' as const,
+          appliedResult: {
+            newVersionNum: result.newVersionNum,
+            tcoDelta,
+            newTco,
+          },
+        },
+      });
+
+      // Refresh scenario data to reflect new version
+      await fetchScenarios();
+      await fetchVersionData(result.newVersionId);
+      await computeTco();
+    } catch (error) {
+      // Revert to proposed state on error
+      updateAgentMessage(messageWithChangeSet.id, {
+        changeSet: { ...messageWithChangeSet.changeSet!, status: 'proposed' as const },
+      });
+
+      // Add error message
+      addAgentMessage({
+        id: Date.now().toString(),
+        versionId: currentVersion!.id,
+        role: 'assistant',
+        content: (error as Error).message,
+        timestamp: Date.now(),
+      });
+    }
   };
 
   const handleRejectChanges = (changeSetId: string) => {
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.changeSet?.id === changeSetId
-          ? { ...msg, changeSet: { ...msg.changeSet, status: 'rejected' as const } }
-          : msg
-      )
-    );
+    const messageWithChangeSet = agentMessages.find((msg) => msg.changeSet?.id === changeSetId);
+    if (!messageWithChangeSet) return;
+
+    updateAgentMessage(messageWithChangeSet.id, {
+      changeSet: { ...messageWithChangeSet.changeSet!, status: 'rejected' as const },
+    });
+  };
+
+  const handleSaveAsRule = (changeSetId: string) => {
+    setSelectedChangeSetId(changeSetId);
+    setRuleName('AI Optimization');
+    setRuleDescription('');
+    setMakeRuleActive(true);
+    setShowRuleModal(true);
+  };
+
+  const handleCreateRule = async () => {
+    if (!selectedChangeSetId || !ruleName.trim() || !currentVersion) return;
+
+    setIsCreatingRule(true);
+    try {
+      const response = await fetch('/api/agent/create-rule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          changeSetId: selectedChangeSetId,
+          name: ruleName,
+          description: ruleDescription,
+          makeActive: makeRuleActive,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create adjustment rule');
+      }
+
+      const result = await response.json();
+
+      // Add success message
+      addAgentMessage({
+        id: Date.now().toString(),
+        versionId: currentVersion.id,
+        role: 'assistant',
+        content: `Created adjustment set "${result.name}" with ${result.rulesCreated} rule(s).${
+          makeRuleActive ? ' The rules are now active and will affect TCO calculations.' : ' The rules are saved but inactive.'
+        }`,
+        timestamp: Date.now(),
+      });
+
+      // Close modal
+      setShowRuleModal(false);
+      setSelectedChangeSetId(null);
+
+      // Refresh adjustments if active
+      if (makeRuleActive) {
+        await computeTco();
+      }
+    } catch (error) {
+      addAgentMessage({
+        id: Date.now().toString(),
+        versionId: currentVersion.id,
+        role: 'assistant',
+        content: (error as Error).message,
+        timestamp: Date.now(),
+      });
+    } finally {
+      setIsCreatingRule(false);
+    }
   };
 
   if (!currentVersion) {
@@ -122,22 +277,35 @@ What would you like to explore?`,
   return (
     <div className="space-y-6 h-[calc(100vh-120px)] flex flex-col">
       {/* Page Header */}
-      <div className="flex items-center gap-4">
-        <div className="p-3 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 animate-pulse-glow">
-          <Bot className="w-6 h-6 text-white" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 animate-pulse-glow">
+            <Bot className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-100">AI Agent</h1>
+            <p className="text-gray-400">
+              Analyzing: {currentScenario?.name} - v{currentVersion.versionNum}
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-100">AI Agent</h1>
-          <p className="text-gray-400">
-            Analyzing: {currentScenario?.name} - v{currentVersion.versionNum}
-          </p>
-        </div>
+        {agentMessages.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearAgentMessages}
+            className="text-gray-400 hover:text-gray-200"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Clear Chat
+          </Button>
+        )}
       </div>
 
       {/* Chat Area */}
       <Card className="flex-1 flex flex-col overflow-hidden">
         <CardContent className="flex-1 overflow-y-auto space-y-4 pb-4">
-          {messages.map((message) => (
+          {agentMessages.map((message) => (
             <div
               key={message.id}
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -191,6 +359,14 @@ What would you like to explore?`,
                         </Button>
                         <Button
                           size="sm"
+                          variant="secondary"
+                          onClick={() => handleSaveAsRule(message.changeSet!.id)}
+                        >
+                          <Save className="w-4 h-4" />
+                          Save as Rule
+                        </Button>
+                        <Button
+                          size="sm"
                           variant="ghost"
                           onClick={() => handleRejectChanges(message.changeSet!.id)}
                         >
@@ -198,10 +374,30 @@ What would you like to explore?`,
                           Reject
                         </Button>
                       </div>
+                    ) : message.changeSet.status === 'applying' ? (
+                      <div className="flex items-center gap-2 text-cyan-400 text-sm">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Applying changes and recomputing TCO...
+                      </div>
                     ) : message.changeSet.status === 'approved' ? (
-                      <div className="flex items-center gap-2 text-green-400 text-sm">
-                        <CheckCircle className="w-4 h-4" />
-                        Changes applied successfully
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-green-400 text-sm">
+                          <CheckCircle className="w-4 h-4" />
+                          Changes applied successfully
+                        </div>
+                        {message.changeSet.appliedResult && (
+                          <div className="text-xs text-gray-400 space-y-1">
+                            <div>New Version: v{message.changeSet.appliedResult.newVersionNum}</div>
+                            <div>
+                              TCO: ${(message.changeSet.appliedResult.newTco / 1000000).toFixed(2)}M
+                              {' '}
+                              <span className={message.changeSet.appliedResult.tcoDelta < 0 ? 'text-green-400' : 'text-red-400'}>
+                                ({message.changeSet.appliedResult.tcoDelta < 0 ? '' : '+'}
+                                ${(message.changeSet.appliedResult.tcoDelta / 1000000).toFixed(2)}M)
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 text-gray-500 text-sm">
@@ -215,7 +411,7 @@ What would you like to explore?`,
             </div>
           ))}
 
-          {isProcessing && (
+          {agentIsProcessing && (
             <div className="flex justify-start">
               <div className="bg-gray-800 rounded-xl p-4">
                 <div className="flex items-center gap-2">
@@ -238,106 +434,111 @@ What would you like to explore?`,
               onKeyPress={(e) => e.key === 'Enter' && handleSend()}
               placeholder="Ask about TCO, request optimizations, or run analysis..."
               className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:border-violet-500"
-              disabled={isProcessing}
+              disabled={agentIsProcessing}
             />
-            <Button onClick={handleSend} disabled={!input.trim() || isProcessing}>
+            <Button onClick={handleSend} disabled={!input.trim() || agentIsProcessing}>
               <Send className="w-4 h-4" />
             </Button>
           </div>
-          <div className="flex gap-2 mt-3">
-            {['What are the main cost drivers?', 'How can I reduce OPEX?', 'Compare to baseline'].map(
-              (suggestion) => (
-                <button
-                  key={suggestion}
-                  onClick={() => setInput(suggestion)}
-                  className="px-3 py-1 text-xs bg-gray-800 text-gray-400 rounded-full hover:bg-gray-700 hover:text-gray-200 transition-colors"
-                >
-                  {suggestion}
-                </button>
-              )
-            )}
+          {/* Quick Insight Buttons */}
+          <div className="flex flex-wrap gap-2 mt-3">
+            {[
+              { label: 'Analyze Cost Drivers', prompt: 'What are the main cost drivers in my TCO model?' },
+              { label: 'Find Optimizations', prompt: 'How can I reduce costs? Suggest optimizations.' },
+              { label: 'Staffing Analysis', prompt: 'Analyze my staffing costs and suggest improvements.' },
+              { label: 'Deployment Analysis', prompt: 'Analyze my deployment schedule and its TCO impact.' },
+            ].map((insight) => (
+              <button
+                key={insight.label}
+                onClick={() => setInput(insight.prompt)}
+                className="px-3 py-1 text-xs bg-gray-800 text-gray-400 rounded-full hover:bg-gray-700 hover:text-gray-200 transition-colors"
+              >
+                {insight.label}
+              </button>
+            ))}
           </div>
         </div>
       </Card>
+
+      {/* Rule Creation Modal */}
+      {showRuleModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-100 mb-4">Save as Adjustment Rule</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Create an adjustment set from the proposed changes. This allows you to toggle the changes on/off and reuse them across scenarios.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Rule Set Name</label>
+                <input
+                  type="text"
+                  value={ruleName}
+                  onChange={(e) => setRuleName(e.target.value)}
+                  placeholder="e.g., Power Optimization"
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-violet-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Description (optional)</label>
+                <textarea
+                  value={ruleDescription}
+                  onChange={(e) => setRuleDescription(e.target.value)}
+                  placeholder="Describe what these rules do..."
+                  rows={2}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-violet-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="makeActive"
+                  checked={makeRuleActive}
+                  onChange={(e) => setMakeRuleActive(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-violet-500 focus:ring-violet-500"
+                />
+                <label htmlFor="makeActive" className="text-sm text-gray-300">
+                  Activate immediately (apply to TCO calculations)
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <Button
+                onClick={handleCreateRule}
+                disabled={!ruleName.trim() || isCreatingRule}
+                className="flex-1"
+              >
+                {isCreatingRule ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Create Rule Set
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowRuleModal(false);
+                  setSelectedChangeSetId(null);
+                }}
+                disabled={isCreatingRule}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
-
-// Mock response generator (replace with actual AI API call)
-interface ComputedSummaryType {
-  totalCapex: number;
-  totalOpex: number;
-  totalTco: number;
-  totalNpv: number;
-  byYear: { year: number; capex: number; opex: number; tco: number; npv: number }[];
-}
-
-function generateMockResponse(input: string, summary: ComputedSummaryType | null): string {
-  const lowerInput = input.toLowerCase();
-
-  if (lowerInput.includes('cost driver') || lowerInput.includes('main cost')) {
-    return `Based on your current TCO model, here are the main cost drivers:
-
-**CAPEX Drivers (${summary ? `$${(summary.totalCapex / 1000000).toFixed(1)}M` : 'Not computed'}):**
-• DU Servers - typically 30-40% of site hardware
-• Radios and Antennas - 25-35% of site hardware
-• CU Infrastructure in DCs - significant for pooled architectures
-
-**OPEX Drivers (${summary ? `$${(summary.totalOpex / 1000000).toFixed(1)}M` : 'Not computed'}):**
-• Site leases and power - largest recurring cost
-• Software subscriptions/support - 15-20% of license value annually
-• Staffing costs - driven by automation levels
-
-Would you like me to analyze any specific area in more detail?`;
-  }
-
-  if (lowerInput.includes('reduce') || lowerInput.includes('optimize')) {
-    return `I've analyzed your model and identified potential optimization opportunities:
-
-**Quick Wins:**
-1. **Increase automation** - Your current auto-remediation is at 60%. Increasing to 80% could reduce NOC staffing by 20-25%.
-
-2. **Optimize CU pooling** - Consider increasing sites per CU from current ratio to reduce CU server costs.
-
-3. **Power efficiency** - Power costs can be reduced 15-20% with modern power systems.
-
-I've prepared specific change proposals below. Review and approve to apply them:`;
-  }
-
-  if (lowerInput.includes('compare') || lowerInput.includes('baseline')) {
-    return `To compare scenarios, I need to access both the current scenario and your baseline.
-
-**Current Scenario Summary:**
-${summary ? `• Total TCO: $${(summary.totalTco / 1000000).toFixed(1)}M
-• CAPEX: $${(summary.totalCapex / 1000000).toFixed(1)}M (${((summary.totalCapex / summary.totalTco) * 100).toFixed(0)}%)
-• OPEX: $${(summary.totalOpex / 1000000).toFixed(1)}M (${((summary.totalOpex / summary.totalTco) * 100).toFixed(0)}%)` : 'Please compute TCO first to see summary.'}
-
-To enable comparison:
-1. Clone this scenario for what-if analysis
-2. Make changes to the clone
-3. Come back here to compare results
-
-Would you like help setting up a comparison scenario?`;
-  }
-
-  return `I can help you analyze your TCO model. Here are some things I can do:
-
-• **Analyze cost drivers** - Identify where your money is going
-• **Suggest optimizations** - Find ways to reduce costs
-• **Run sensitivity analysis** - See how changes affect outcomes
-• **Compare scenarios** - Understand differences between configurations
-
-What would you like to explore?`;
-}
-
-function generateMockChangeSet(): ChangeProposal {
-  return {
-    id: Date.now().toString(),
-    changes: [
-      { bucket: 'power_per_site', currentValue: 5000, proposedValue: 4250, reason: 'Power efficiency upgrade' },
-      { bucket: 'noc_staffing', currentValue: 150000, proposedValue: 112500, reason: 'Increased automation' },
-    ],
-    status: 'proposed',
-  };
 }
 

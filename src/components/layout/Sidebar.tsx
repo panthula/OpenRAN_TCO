@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -11,7 +11,10 @@ import {
   Bot,
   BarChart3,
   Calculator,
+  GitCompare,
+  FolderOpen,
 } from 'lucide-react';
+import { useScenarioStore } from '@/lib/store/scenario-store';
 
 const navItems = [
   {
@@ -21,6 +24,14 @@ const navItems = [
     icon: Cog,
     href: '/setup',
     color: 'from-slate-500 to-zinc-600',
+  },
+  {
+    id: 'scenarios',
+    label: 'Scenarios',
+    description: 'Manage Scenarios',
+    icon: FolderOpen,
+    href: '/scenarios',
+    color: 'from-red-700 to-purple-900',
   },
   {
     id: 'ran',
@@ -55,17 +66,43 @@ const navItems = [
     color: 'from-orange-500 to-yellow-500',
   },
   {
+    id: 'compare',
+    label: 'Compare',
+    description: 'Scenario Comparison',
+    icon: GitCompare,
+    href: '/dashboard/comparison',
+    color: 'from-violet-500 to-purple-600',
+  },
+  {
     id: 'agent',
     label: 'Agent',
     description: 'AI Analysis',
     icon: Bot,
     href: '/agent',
-    color: 'from-violet-500 to-fuchsia-500',
+    color: 'from-fuchsia-500 to-pink-500',
   },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { computeTco, currentVersion } = useScenarioStore();
+  const [isComputing, setIsComputing] = useState(false);
+
+  const handleQuickCompute = async () => {
+    if (!currentVersion) {
+      console.warn('No scenario version selected');
+      return;
+    }
+
+    setIsComputing(true);
+    try {
+      await computeTco();
+    } catch (error) {
+      console.error('Compute failed:', error);
+    } finally {
+      setIsComputing(false);
+    }
+  };
 
   return (
     <aside className="fixed left-0 top-[73px] bottom-0 w-64 bg-gray-900/50 border-r border-gray-800 overflow-y-auto">
@@ -105,23 +142,20 @@ export function Sidebar() {
 
       {/* Quick Actions */}
       <div className="p-4 border-t border-gray-800 mt-4">
-        <div className="bg-gradient-to-br from-cyan-500/10 to-purple-500/10 border border-gray-700 rounded-lg p-4">
+        <div className="bg-gradient-to-br from-red-700/10 to-purple-900/10 border border-gray-700 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-2">
-            <Calculator className="w-4 h-4 text-cyan-400" />
+            <Calculator className="w-4 h-4 text-red-500" />
             <span className="text-sm font-medium text-gray-200">Quick Compute</span>
           </div>
           <p className="text-xs text-gray-500 mb-3">
             Calculate TCO with current inputs
           </p>
           <button
-            onClick={() => {
-              // Trigger compute via store
-              const { computeTco } = require('@/lib/store/scenario-store').useScenarioStore.getState();
-              computeTco();
-            }}
-            className="w-full px-3 py-2 text-sm font-medium text-white bg-gradient-to-r from-cyan-500 to-purple-500 rounded-lg hover:opacity-90 transition-opacity"
+            onClick={handleQuickCompute}
+            disabled={!currentVersion || isComputing}
+            className="w-full px-3 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-700 to-purple-900 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Compute TCO
+            {isComputing ? 'Computing...' : 'Compute TCO'}
           </button>
         </div>
       </div>

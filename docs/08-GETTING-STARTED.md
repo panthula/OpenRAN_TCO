@@ -167,6 +167,7 @@ Edit `src/lib/compute/engine.ts`:
 
 - Global styles: `src/app/globals.css`
 - Component styles: Tailwind classes in components
+- Color palette: See [Design System](./11-DESIGN-SYSTEM.md) for Rakuten brand colors
 
 ## Environment Variables
 
@@ -223,3 +224,4 @@ npm run build
    - [Cloud](./03-CLOUD.md) - Cloud domain (Day 0/1/2)
    - [OSS](./04-OSS.md) - OSS domain (Day 0/1/2 + Staffing)
 4. Set up AI integration for full agent functionality
+5. Review the [Design System](./11-DESIGN-SYSTEM.md) for color palette and styling guidelines

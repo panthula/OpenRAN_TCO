@@ -9,12 +9,20 @@ const globalForPrisma = globalThis as unknown as {
 function createPrismaClient(): PrismaClient {
   const dbPath = path.join(process.cwd(), 'dev.db');
   const adapter = new PrismaBetterSqlite3({ url: dbPath });
-  
-  return new PrismaClient({ adapter });
+
+  return new PrismaClient({
+    adapter,
+    log: process.env.NODE_ENV === 'development'
+      ? ['query', 'error', 'warn']
+      : ['error'],
+    errorFormat: 'minimal',
+  });
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
 
 export default prisma;

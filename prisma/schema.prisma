@@ -36,13 +36,14 @@ model ScenarioVersion {
   createdAt   DateTime @default(now())
   isActive    Boolean  @default(true)
 
-  scenario      Scenario       @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
-  inputFacts    InputFact[]
-  computedFacts ComputedFact[]
+  scenario       Scenario       @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  inputFacts     InputFact[]
+  computedFacts  ComputedFact[]
   siteArchetypes SiteArchetype[]
-  dcTypes       DcType[]
-  changeSets    ChangeSet[]
-  sweepRuns     SweepRun[]
+  dcTypes        DcType[]
+  changeSets     ChangeSet[]
+  sweepRuns      SweepRun[]
+  adjustmentSets AdjustmentSet[]
 
   @@unique([scenarioId, versionNum])
   @@index([scenarioId])
@@ -53,16 +54,35 @@ model ScenarioVersion {
 // ============================================================================
 
 model SiteArchetype {
-  id               String @id @default(cuid())
-  scenarioVersionId String
-  name             String
-  numSites         Int
-  numCus           Int
-  description      String?
+  id                 String @id @default(cuid())
+  scenarioVersionId  String
+  name               String
+  numSites           Int    // Total sites (derived from deployment schedule if present)
+  numCus             Int    // Total CUs (derived from deployment schedule if present)
+  numDcs             Int    @default(1)  // Total DCs (derived from deployment schedule if present)
+  numDusPerSite      Int    @default(1)  // DUs per site (for Cloud license pricing)
+  description        String?
+  deploymentYears    Int    @default(1)  // Number of years to deploy (1-10)
 
-  scenarioVersion ScenarioVersion @relation(fields: [scenarioVersionId], references: [id], onDelete: Cascade)
+  scenarioVersion    ScenarioVersion @relation(fields: [scenarioVersionId], references: [id], onDelete: Cascade)
+  deploymentSchedule DeploymentYear[]
 
   @@index([scenarioVersionId])
+}
+
+// Deployment schedule for phased site/CU/DC rollout
+model DeploymentYear {
+  id            String @id @default(cuid())
+  archetypeId   String
+  yearIndex     Int    // 0-based: 0 = Year 1, 1 = Year 2, etc.
+  sitesDeployed Int    @default(0)
+  cusDeployed   Int    @default(0)
+  dcsDeployed   Int    @default(0)
+
+  archetype     SiteArchetype @relation(fields: [archetypeId], references: [id], onDelete: Cascade)
+
+  @@unique([archetypeId, yearIndex])
+  @@index([archetypeId])
 }
 
 model DcType {
@@ -123,6 +143,8 @@ model InputFact {
   @@index([scopeType, scopeId])
   @@index([scenarioVersionId, day, domain])
   @@index([scenarioVersionId, day, domain, layer])
+  @@index([scenarioVersionId, layer]) // For assumption queries
+  @@index([scenarioVersionId, bucket]) // For bucket-specific queries
 }
 
 // ============================================================================
@@ -198,6 +220,55 @@ model SweepRun {
 
   @@index([sweepDefinitionId])
   @@index([scenarioVersionId])
+}
+
+// ============================================================================
+// Adjustment Sets (What-If Analysis)
+// ============================================================================
+
+model AdjustmentSet {
+  id                String   @id @default(cuid())
+  scenarioVersionId String
+  name              String
+  description       String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  scenarioVersion   ScenarioVersion @relation(fields: [scenarioVersionId], references: [id], onDelete: Cascade)
+  rules             AdjustmentRule[]
+
+  @@index([scenarioVersionId])
+  @@index([scenarioVersionId, isActive])
+}
+
+model AdjustmentRule {
+  id              String   @id @default(cuid())
+  adjustmentSetId String
+
+  // Target dimensions (null = match all)
+  targetDay       String?  // day0, day1, day2, or null for all
+  targetDomain    String?  // ran, cloud, oss, or null for all
+  targetLayer     String?  // hardware_bom, software, etc., or null for all
+  targetBucket    String?  // specific bucket or null for all
+  targetScopeType String?  // site_archetype, dc_type, network_global, or null for all
+  targetScopeId   String?  // specific scope ID or null for all within scopeType
+
+  // Adjustment type and value
+  adjustmentType  String   // percentage, fixed, replace
+  adjustmentValue Float    // e.g., 10 for +10%, -50 for -$50, or absolute value for replace
+
+  // Ordering and metadata
+  priority        Int      @default(0)  // Higher priority applied last
+  notes           String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  adjustmentSet   AdjustmentSet @relation(fields: [adjustmentSetId], references: [id], onDelete: Cascade)
+
+  @@index([adjustmentSetId])
+  @@index([adjustmentSetId, priority])
 }
 
 // ============================================================================

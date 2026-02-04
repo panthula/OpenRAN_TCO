@@ -5,6 +5,7 @@ import { Radio, Settings, Wrench, Activity, DollarSign } from 'lucide-react';
 import { Tabs } from '@/components/ui/Tabs';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { InputTable } from '@/components/inputs/InputTable';
+import { YearlyInputTable } from '@/components/inputs/YearlyInputTable';
 import { RanDollarSummary } from '@/components/ran/RanDollarSummary';
 import {
   RanSiteBomBuckets,
@@ -14,19 +15,21 @@ import {
   RanSoftwareDcBuckets,
   SiteOpexBuckets,
   LifecycleBuckets,
+  NetworkPlanningBucketGroups,
+  RanDay1DeploymentBuckets,
 } from '@/lib/model/taxonomy';
 
 // Day1 service buckets for RAN - Site installation items (scaled per_site)
 const ranSiteInstallationBuckets = [
   'site_installation',
-  'transport_fiber_integration',
-  'automation_ztp_enablement',
+  'du_config',
+  'iptx_config',
 ] as const;
 
 // Day1 service buckets for RAN - CU installation items (scaled per_cu)
 const ranCuInstallationBuckets = [
-  'dc_installation',
-  'ru_du_cu_commissioning',
+  'racks_cu_pdu_tor_install',
+  'all_iptx_config',
 ] as const;
 
 const ranTestingBuckets = [
@@ -35,6 +38,22 @@ const ranTestingBuckets = [
   'network_acceptance_testing',
   'drive_tests',
   'security_validation',
+] as const;
+
+const ranIntegrationBuckets = [
+  'site_integration',
+  'core_integration',
+  'other_integration',
+] as const;
+
+// Day0 network planning service buckets (network_global scope)
+const networkPlanningServiceBuckets = [
+  'rf_survey',
+  'rf_planning',
+  'rf_design',
+  'interop_testing',
+  'ip_planning',
+  'other_ran_planning',
 ] as const;
 
 const dayTabs = [
@@ -95,8 +114,8 @@ export default function RanPage() {
 
           <Card>
             <CardHeader
-              title="RAN CU-in-DC Hardware BoM"
-              description="Per-CU hardware costs at data centers"
+              title="DC Hardware BOM"
+              description="All CU and IP related HW per each DC"
             />
             <CardContent>
               <InputTable
@@ -143,6 +162,25 @@ export default function RanPage() {
               />
             </CardContent>
           </Card>
+
+          {/* Network Planning Services */}
+          <Card>
+            <CardHeader
+              title="Network Planning Services"
+              description="One-time planning costs that apply across the entire network"
+            />
+            <CardContent>
+              <InputTable
+                day="day0"
+                domain="ran"
+                layer="services"
+                buckets={networkPlanningServiceBuckets}
+                defaultDriver="fixed"
+                defaultScope="network_global"
+                bucketGroups={NetworkPlanningBucketGroups}
+              />
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -180,8 +218,8 @@ export default function RanPage() {
                 {/* CU Installation Section */}
                 <div>
                   <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
-                    <span className="text-sm font-medium text-gray-300">CU Installation</span>
-                    <span className="text-xs text-gray-500">(per CU)</span>
+                    <span className="text-sm font-medium text-gray-300">DC Installation</span>
+                    <span className="text-xs text-gray-500">(per DC)</span>
                   </div>
                   <InputTable
                     day="day1"
@@ -209,6 +247,40 @@ export default function RanPage() {
                 buckets={ranTestingBuckets}
                 defaultDriver="per_site"
                 defaultScope="site_archetype"
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Integration"
+              description="Site, core, and other integration costs"
+            />
+            <CardContent>
+              <InputTable
+                day="day1"
+                domain="ran"
+                layer="services"
+                buckets={ranIntegrationBuckets}
+                defaultDriver="per_site"
+                defaultScope="site_archetype"
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Deployment Services"
+              description="Network-wide RAN deployment support costs by year (only applies in years with deployments)"
+            />
+            <CardContent>
+              <YearlyInputTable
+                day="day1"
+                domain="ran"
+                layer="services"
+                buckets={RanDay1DeploymentBuckets}
+                defaultDriver="per_year_deployment"
+                defaultScope="network_global"
               />
             </CardContent>
           </Card>

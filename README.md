@@ -19,9 +19,10 @@ Organized around the network lifecycle:
 - **Domain-First Navigation**: Inputs organized by product team (RAN, Cloud, OSS) with Day 0/1/2 tabs
 - **Bucketed Input Taxonomy**: Every cost is categorized by Day/Domain/Layer/Bucket for granular querying
 - **Scenario Management**: Create baselines, clone for what-if analysis, version history
+- **What-If Analysis**: Apply adjustment rules (percentage, fixed, replace) to model cost scenarios without modifying base inputs
 - **Parameter Sweeps**: Run sensitivity analysis across multiple parameter combinations
 - **AI Agent**: Ask questions, get insights, propose and apply optimizations
-- **Dashboard**: Visualize TCO results with charts and summaries
+- **Dashboard**: Visualize TCO results with domain breakdown charts and adjustment impact summaries
 
 ## Quick Start
 
@@ -100,6 +101,7 @@ See the [docs/](./docs/) folder for comprehensive documentation:
 - **[Agent](./docs/06-AGENT-INTEGRATION.md)** - AI integration guide
 - **[Database](./docs/07-DATABASE-SCHEMA.md)** - Schema documentation
 - **[Getting Started](./docs/08-GETTING-STARTED.md)** - Setup and usage guide
+- **[Adjustments](./docs/09-ADJUSTMENTS.md)** - What-if adjustment modifiers
 
 ## Technology Stack
 

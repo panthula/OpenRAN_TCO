@@ -16,7 +16,7 @@ export const Days = ['day0', 'day1', 'day2'] as const;
 
 | Value | Label | Description |
 |-------|-------|-------------|
-| `day0` | Day 0 - Design + Procurement | Hardware/software procurement, planning |
+| `day0` | Day 0 - Design + Procurement + Platform | Hardware/software procurement, planning |
 | `day1` | Day 1 - Build, Install, Integrate | Physical installation, commissioning, testing |
 | `day2` | Day 2 - Operations | Recurring costs, staffing, lifecycle management |
 
@@ -76,7 +76,7 @@ export const RanSiteBomBuckets = [
 ] as const;
 ```
 
-#### RAN CU-in-DC Hardware BoM
+#### DC Hardware BOM
 
 ```typescript
 export const RanCuDcBomBuckets = [
@@ -142,7 +142,7 @@ export const CloudLicenseBuckets = [
   'cloud_per_cu_server',     // Cloud License (per CU Server)
   'cloud_per_oss_server',    // Cloud License (per OSS Server)
   'storage_licenses',        // Storage Licenses
-  'cloud_platform_base',     // Cloud Platform Base License
+  'cloud_native_platform',   // Cloud Native Platform License
 ] as const;
 ```
 
@@ -172,13 +172,24 @@ export const OssSoftwareBuckets = [
 
 ```typescript
 export const ServicesBuckets = [
-  // Day0 Planning & Engineering
+  // Day0 RAN Network Planning Services
+  'rf_survey',
   'rf_planning',
-  'ip_sync_planning',
+  'rf_design',
+  'interop_testing',
+  'ip_planning',
+  'other_ran_planning',
+  // Day0 Other Planning
   'cloud_planning',
   'oss_smo_planning',
   'security_planning',
   'acceptance_criteria_dev',
+  // Day0 Cloud Design
+  'cloud_design',
+  'cloud_architecture',
+  // Day0 OSS Planning
+  'oss_dimensioning',
+  'oss_planning',
   // Day1 Installation
   'site_installation',
   'dc_installation',
@@ -191,6 +202,7 @@ export const ServicesBuckets = [
   'drive_tests',
   'security_validation',
   // Day1 Cloud
+  'cloud_deployment_services',
   'cluster_bringup',
   'cicd_pipeline_setup',
   'observability_setup',
@@ -198,6 +210,10 @@ export const ServicesBuckets = [
   'oss_installation',
   'oss_integration',
   'oss_automation_ztp',
+  // Day1 RAN Integration
+  'site_integration',
+  'core_integration',
+  'other_integration',
 ] as const;
 ```
 
@@ -235,16 +251,26 @@ export const StaffingRoles = [
 ] as const;
 ```
 
+#### Platform Operations (Day2)
+
+```typescript
+export const PlatformOpsBuckets = [
+  'observability_ops',    // Observability Operations
+  'cicd_ops',             // CI/CD Operations
+  'security_ops',         // Security Operations
+  'backup_dr',            // Backup/DR
+] as const;
+```
+
 ### Axis 5: Scope Type
 
 ```typescript
-export const ScopeTypes = ['site_archetype', 'dc_type', 'network_global'] as const;
+export const ScopeTypes = ['site_archetype', 'network_global'] as const;
 ```
 
 | Value | Description |
 |-------|-------------|
 | `site_archetype` | Cost varies by site type (Urban Macro, Rural, etc.) |
-| `dc_type` | Cost varies by DC type (Edge, Regional, Central) |
 | `network_global` | Single value for entire network |
 
 ### Axis 6: Scaling Drivers

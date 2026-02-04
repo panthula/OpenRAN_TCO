@@ -26,8 +26,21 @@ This is a **Total Cost of Ownership (TCO) modeler** for OpenRAN mobile networks 
 - **Next.js 14+ (App Router)** with TypeScript
 - **SQLite** via Prisma ORM (can migrate to PostgreSQL)
 - **Zustand** for client state management
-- **Tailwind CSS** for styling
+- **Tailwind CSS** for styling with **Rakuten brand colors**
 - **Recharts** for visualizations
+
+### Color Palette (Rakuten Brand)
+
+| Role | Color | Hex |
+|------|-------|-----|
+| Primary Accent | Rakuten Red | `#BF0000` |
+| Secondary Accent | Honey Flower | `#5F1C6B` |
+| Success | Emerald | `#10b981` |
+| Warning | Amber | `#f59e0b` |
+| Danger | Monza Red | `#D8000D` |
+| Lighter Red (charts) | Burnt Sienna | `#ED5050` |
+
+See `docs/11-DESIGN-SYSTEM.md` for complete color documentation.
 
 ### Domain Structure
 
@@ -154,6 +167,10 @@ src/
 | `src/app/api/agent/propose/route.ts` | Generate AI-powered proposals |
 | `src/app/api/agent/apply/route.ts` | Apply approved changes with version creation |
 | `src/app/api/agent/create-rule/route.ts` | Convert proposals to adjustment rules |
+| `src/app/globals.css` | CSS variables for Rakuten brand colors and global styles |
+| `src/components/ui/Button.tsx` | Primary button component with brand styling |
+| `src/components/layout/Header.tsx` | App header with brand logo gradient |
+| `src/components/layout/Sidebar.tsx` | Navigation sidebar with brand colors |
 
 ## Common Tasks
 
@@ -200,6 +217,23 @@ Key files:
 - `src/lib/compute/engine.ts` - Adjustment application logic
 - `src/components/inputs/AdjustmentPanel.tsx` - UI for creating/editing rules
 - `docs/09-ADJUSTMENTS.md` - Feature documentation
+
+### Update Color Palette
+
+To modify the brand colors:
+1. Update CSS variables in `src/app/globals.css` (lines 10-14, 21)
+2. Update Button component in `src/components/ui/Button.tsx`
+3. Update Header gradient in `src/components/layout/Header.tsx`
+4. Update Sidebar in `src/components/layout/Sidebar.tsx`
+5. Update dashboard chart colors (hardcoded hex values):
+   - `src/components/dashboard/DomainImpact.tsx`
+   - `src/components/dashboard/WaterfallChart.tsx`
+   - `src/components/dashboard/DeltaWaterfall.tsx`
+   - `src/components/dashboard/SensitivityTornado.tsx`
+   - `src/components/dashboard/ScenarioComparison.tsx`
+   - `src/components/dashboard/ComparisonTornado.tsx`
+
+See `docs/11-DESIGN-SYSTEM.md` for complete color documentation.
 
 ### Multi-Scenario Comparison
 
@@ -259,3 +293,4 @@ Comprehensive docs in `/docs/`:
 - `08-GETTING-STARTED.md` - Setup and usage guide
 - `09-ADJUSTMENTS.md` - What-if adjustment modifiers documentation
 - `10-SCENARIO-COMPARISON.md` - Multi-scenario comparison feature
+- `11-DESIGN-SYSTEM.md` - Color palette, typography, and component styling (Rakuten brand)

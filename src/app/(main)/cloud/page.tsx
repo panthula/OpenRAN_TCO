@@ -5,14 +5,18 @@ import { Cloud, Settings, Wrench, Activity, DollarSign } from 'lucide-react';
 import { Tabs } from '@/components/ui/Tabs';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { InputTable } from '@/components/inputs/InputTable';
-import { DomainDollarSummary } from '@/components/summary/DomainDollarSummary';
+import { YearlyInputTable } from '@/components/inputs/YearlyInputTable';
+import { CloudDollarSummary } from '@/components/cloud/CloudDollarSummary';
 import {
   CloudLicenseBuckets,
+  CloudLicenseBucketGroups,
   PlatformOpsBuckets,
+  CloudDay1DeploymentBuckets,
 } from '@/lib/model/taxonomy';
 
 // Day1 cloud service buckets
 const cloudServicesBuckets = [
+  'cloud_deployment_services',
   'cluster_bringup',
   'cicd_pipeline_setup',
   'observability_setup',
@@ -70,6 +74,25 @@ export default function CloudPage() {
                 buckets={CloudLicenseBuckets}
                 defaultDriver="per_site"
                 defaultScope="network_global"
+                bucketGroups={CloudLicenseBucketGroups}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Cloud Design & Architecture */}
+          <Card>
+            <CardHeader
+              title="Cloud Design & Architecture"
+              description="One-time cloud platform design costs"
+            />
+            <CardContent>
+              <InputTable
+                day="day0"
+                domain="cloud"
+                layer="services"
+                buckets={['cloud_design', 'cloud_architecture']}
+                defaultDriver="fixed"
+                defaultScope="network_global"
               />
             </CardContent>
           </Card>
@@ -96,7 +119,24 @@ export default function CloudPage() {
                 layer="services"
                 buckets={cloudServicesBuckets}
                 defaultDriver="per_dc"
-                defaultScope="dc_type"
+                defaultScope="site_archetype"
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Deployment Services"
+              description="Network-wide cloud deployment support costs by year (only applies in years with deployments)"
+            />
+            <CardContent>
+              <YearlyInputTable
+                day="day1"
+                domain="cloud"
+                layer="services"
+                buckets={CloudDay1DeploymentBuckets}
+                defaultDriver="per_year_deployment"
+                defaultScope="network_global"
               />
             </CardContent>
           </Card>
@@ -154,7 +194,7 @@ export default function CloudPage() {
             <DollarSign className="w-4 h-4 text-emerald-400" />
             <span>Network-scaled cost summary across all Cloud Day 0/1/2 inputs</span>
           </div>
-          <DomainDollarSummary domain="cloud" />
+          <CloudDollarSummary />
         </div>
       )}
     </div>

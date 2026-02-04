@@ -5,19 +5,20 @@ import { Server, Settings, Wrench, Activity, Users, DollarSign } from 'lucide-re
 import { Tabs } from '@/components/ui/Tabs';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { InputTable } from '@/components/inputs/InputTable';
+import { YearlyInputTable } from '@/components/inputs/YearlyInputTable';
+import { OssSoftwareLicenseToggle } from '@/components/inputs/OssSoftwareLicenseToggle';
 import { DomainDollarSummary } from '@/components/summary/DomainDollarSummary';
 import {
   OssBomBuckets,
+  OssBomBucketGroups,
   OssSoftwareBuckets,
+  OssSoftwareBucketGroups,
   StaffingRoles,
+  OssDay1DeploymentBuckets,
+  OssDay1ServicesBuckets,
+  OssDay1ServicesBucketGroups,
+  OssIntegrationBuckets,
 } from '@/lib/model/taxonomy';
-
-// Day1 OSS service buckets
-const ossServicesBuckets = [
-  'oss_installation',
-  'oss_integration',
-  'oss_automation_ztp',
-] as const;
 
 const dayTabs = [
   { id: 'day0', label: 'Day 0', icon: <Settings className="w-4 h-4" />, description: 'Design + Procurement' },
@@ -37,7 +38,7 @@ export default function OssPage() {
           <Server className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-100">OSS / SMO / RIC</h1>
+          <h1 className="text-2xl font-bold text-gray-100">OSS</h1>
           <p className="text-gray-400">Operations support systems, orchestration, and intelligent controller costs</p>
         </div>
       </div>
@@ -70,23 +71,44 @@ export default function OssPage() {
                 layer="hardware_bom"
                 buckets={OssBomBuckets}
                 defaultDriver="per_server"
-                defaultScope="dc_type"
+                defaultScope="network_global"
+                bucketGroups={OssBomBucketGroups}
               />
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader
-              title="OSS/SMO/RIC Software Procurement"
+              title="OSS Modules SW Pricing"
               description="Site management, intelligent ops, SMO platform, and AI licenses"
             />
             <CardContent>
+              <OssSoftwareLicenseToggle />
               <InputTable
                 day="day0"
                 domain="oss"
                 layer="software"
                 buckets={OssSoftwareBuckets}
                 defaultDriver="per_license_unit"
+                defaultScope="network_global"
+                bucketGroups={OssSoftwareBucketGroups}
+              />
+            </CardContent>
+          </Card>
+
+          {/* OSS Planning & Dimensioning */}
+          <Card>
+            <CardHeader
+              title="OSS Planning & Dimensioning"
+              description="One-time OSS planning costs"
+            />
+            <CardContent>
+              <InputTable
+                day="day0"
+                domain="oss"
+                layer="services"
+                buckets={['oss_dimensioning', 'oss_planning']}
+                defaultDriver="fixed"
                 defaultScope="network_global"
               />
             </CardContent>
@@ -105,16 +127,35 @@ export default function OssPage() {
           <Card>
             <CardHeader
               title="OSS Installation & Integration"
-              description="OSS platform deployment and integration costs"
+              description="OSS platform deployment and integration costs (Count × Per-Unit for integrations)"
             />
             <CardContent>
               <InputTable
                 day="day1"
                 domain="oss"
                 layer="services"
-                buckets={ossServicesBuckets}
-                defaultDriver="per_dc"
-                defaultScope="dc_type"
+                buckets={OssDay1ServicesBuckets}
+                defaultDriver="fixed"
+                defaultScope="network_global"
+                bucketGroups={OssDay1ServicesBucketGroups}
+                integrationBuckets={OssIntegrationBuckets}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Deployment Services"
+              description="Network-wide OSS deployment support costs by year (only applies in years with deployments)"
+            />
+            <CardContent>
+              <YearlyInputTable
+                day="day1"
+                domain="oss"
+                layer="services"
+                buckets={OssDay1DeploymentBuckets}
+                defaultDriver="per_year_deployment"
+                defaultScope="network_global"
               />
             </CardContent>
           </Card>
@@ -142,6 +183,7 @@ export default function OssPage() {
                 buckets={OssSoftwareBuckets}
                 defaultDriver="per_license_unit"
                 defaultScope="network_global"
+                bucketGroups={OssSoftwareBucketGroups}
               />
             </CardContent>
           </Card>

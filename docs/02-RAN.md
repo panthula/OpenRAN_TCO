@@ -46,7 +46,7 @@ Per-site costs by archetype:
 | `ancillary_and_passive` | Cables, jumpers, grounding | per_site |
 | `other_ran_site` | Spares, staging, misc | per_site |
 
-### RAN CU-in-DC Hardware BoM
+### DC Hardware BOM
 
 Per-CU costs by DC type:
 
@@ -99,25 +99,54 @@ The Physical Installation card is split into two sub-sections with different sca
 | Bucket | Description | Driver | Scope |
 |--------|-------------|--------|-------|
 | `site_installation` | Site installation (labor, rigging) | per_site | site_archetype |
-| `transport_fiber_integration` | Transport and fiber integration | per_site | site_archetype |
-| `automation_ztp_enablement` | Automation/ZTP enablement | per_site | site_archetype |
+| `transport_fiber_integration` | DU configuration | per_site | site_archetype |
+| `automation_ztp_enablement` | IPTX configuration | per_site | site_archetype |
 
-#### CU Installation (per_cu)
+#### DC Installation (per_dc)
 
 | Bucket | Description | Driver | Scope |
 |--------|-------------|--------|-------|
-| `dc_installation` | DC installation for CU racks | per_cu | site_archetype |
-| `ru_du_cu_commissioning` | RU/DU/CU commissioning | per_cu | site_archetype |
+| `dc_installation` | DC installation for CU racks | per_dc | site_archetype |
+| `ru_du_cu_commissioning` | All IPTX configuration | per_dc | site_archetype |
 
 ### Testing & Acceptance
 
-| Bucket | Description | Driver |
-|--------|-------------|--------|
-| `site_acceptance_testing` | Individual site acceptance | per_site |
-| `cluster_acceptance_testing` | Cluster-level testing | per_cluster |
-| `network_acceptance_testing` | Network-wide acceptance | fixed |
-| `drive_tests` | Drive testing | per_site |
-| `security_validation` | Security validation | per_cluster |
+| Bucket | Description | Driver | Summary Display |
+|--------|-------------|--------|-----------------|
+| `site_acceptance_testing` | Individual site acceptance | per_site | Scales with sites |
+| `cluster_acceptance_testing` | Cluster-level testing | per_site | Fixed (×1) |
+| `network_acceptance_testing` | Network-wide acceptance | per_site | Fixed (×1) |
+| `drive_tests` | Drive testing | per_site | Fixed (×1) |
+| `security_validation` | Security validation | per_site | Fixed (×1) |
+
+> **Note**: In the RAN $ Summary tab, `cluster_acceptance_testing`, `network_acceptance_testing`, `drive_tests`, and `security_validation` are displayed with a fixed multiplier of 1, regardless of their input driver. Only `site_acceptance_testing` scales with the number of sites.
+
+### Integration
+
+| Bucket | Description | Driver | Summary Display |
+|--------|-------------|--------|-----------------|
+| `site_integration` | Per-site integration work | per_site | Scales with sites |
+| `core_integration` | Core network integration | per_site | Fixed (×1) |
+| `other_integration` | Other integration costs | per_site | Fixed (×1) |
+
+> **Note**: In the RAN $ Summary tab, `core_integration` and `other_integration` are displayed with a fixed multiplier of 1. Only `site_integration` scales with the number of sites.
+
+### Deployment Services
+
+Network-wide deployment support costs that vary by year. These use the `per_year_deployment` driver and are only applied in years with deployment activity.
+
+| Bucket | Description | Driver | Scope |
+|--------|-------------|--------|-------|
+| `ran_engineering_support` | RAN Engineering Support | per_year_deployment | network_global |
+| `core_engineering_support` | Core Engineering Support | per_year_deployment | network_global |
+| `ip_transport_support` | IP/Transport Support | per_year_deployment | network_global |
+| `product_support` | Product Support | per_year_deployment | network_global |
+
+**Input Method**: YearlyInputTable with per-year cost fields (Y1, Y2, Y3, etc.)
+
+**Data Storage**: Values stored in `InputFact.valueJson` as `{"year_0": 50000, "year_1": 60000, ...}`
+
+**Cost Application**: Only charged in years with deployments (sites/CUs/DCs > 0)
 
 ### Day 1 Cost Treatment
 
@@ -125,6 +154,7 @@ All Day 1 RAN costs are treated as **CAPEX**:
 - Full amount recognized in Year 0 (or first year of deployment)
 - No recurring component (these are one-time services)
 - May be spread if deployment is phased across years
+- **Deployment Services**: Applied per-year based on `valueJson` values, only in deployment years
 
 ### Scaling Examples
 
@@ -209,15 +239,109 @@ The **RAN $ Summary** tab provides a consolidated view of all RAN costs:
 | **One-Time Total** | Day 0 + Day 1 combined | Network-scaled |
 | **Annual Run-Rate** | Day 2 recurring costs | Per year |
 
-### Per-Day Breakdown Tables
+### Per-Day Breakdown Sections
 
-Each day shows a breakdown by driver type:
-- **Per-Site Costs**: Unit value × Total Sites
-- **Per-CU Costs**: Unit value × Total CUs
-- **Per-DC Costs**: Unit value × Total DCs
-- **Fixed Costs**: One-time amounts
+#### Day 0 - Design & Procurement
 
-**Component Location**: `src/components/ran/RanDollarSummary.tsx`
+| Section | Description | Multiplier Display |
+|---------|-------------|-------------------|
+| **Hardware BoM (Site)** | Per-site hardware costs | × N sites |
+| **Hardware (per DC)** | DC-scoped hardware (CU servers, switches) | × N DCs |
+| **Software Licenses (Site)** | Per-site software | × N sites |
+| **Software Licenses (per DC)** | DC-scoped software | × N DCs |
+
+#### Day 1 - Build & Integration
+
+| Section | Description | Multiplier Display |
+|---------|-------------|-------------------|
+| **Installation (Site)** | Per-site installation costs | × N sites |
+| **Installation (per DC)** | DC-scoped installation | × N DCs |
+| **Testing & Acceptance** | Testing costs (see note below) | × N sites or ×1 |
+| **Integration** | Integration costs (see note below) | × N sites or ×1 |
+
+**Fixed Multiplier Override**: The following buckets always display with multiplier = 1 in the summary, regardless of their input driver:
+- Testing: `cluster_acceptance_testing`, `network_acceptance_testing`, `drive_tests`, `security_validation`
+- Integration: `core_integration`, `other_integration`
+
+Only `site_acceptance_testing` and `site_integration` scale with the site count.
+
+#### Day 2 - Operations (Annual)
+
+Shows recurring annual costs with appropriate multipliers (per_site, per_year, etc.).
+
+### Yearly Cost Breakdown
+
+The **Yearly Cost Breakdown** card shows Day 0/1/2 costs broken down by year and archetype, enabling visibility into how costs evolve with phased deployments.
+
+#### Features
+
+- **Collapsible Year Rows**: Click any year row to expand/collapse archetype details
+- **Color-Coded Columns**: Day 0 (cyan), Day 1 (purple), Day 2 (amber)
+- **Deployment Tracking**: Shows sites deployed per year and cumulative totals
+- **CAPEX/OPEX Phasing**: Day 0/1 uses this year's deployments, Day 2 uses cumulative
+
+#### Table Structure
+
+| Column | Description |
+|--------|-------------|
+| Year | Year index (Y1, Y2, etc.) |
+| Archetype | Site archetype name or "Network Global" |
+| Sites | Cumulative sites deployed through this year |
+| Day 0 | CAPEX procurement costs for new deployments |
+| Day 1 | CAPEX installation costs for new deployments |
+| Day 2 | OPEX operations costs (scales with cumulative sites) |
+| Total | Sum of Day 0 + Day 1 + Day 2 for the row |
+
+#### Cost Calculation Logic
+
+```typescript
+// Day 0/1 (CAPEX) - uses THIS YEAR's deployments
+if (fact.day === 'day0' || fact.day === 'day1') {
+  multiplier = getMultiplier(fact.driver, sitesThisYear, cusThisYear, dcsThisYear);
+}
+
+// Day 2 (OPEX) - uses CUMULATIVE deployments
+if (fact.day === 'day2') {
+  multiplier = getMultiplier(fact.driver, cumulativeSites, cumulativeCus, cumulativeDcs);
+}
+```
+
+This matches the compute engine logic in `src/lib/compute/engine.ts`.
+
+#### Example: 3-Year Phased Deployment
+
+For an archetype with 300 sites deployed as 100/150/50:
+
+| Year | Sites This Year | Cumulative | Day 0 | Day 1 | Day 2 |
+|------|-----------------|------------|-------|-------|-------|
+| Y1 | 100 | 100 | $5.0M | $1.5M | $1.2M |
+| Y2 | 150 | 250 | $7.5M | $2.3M | $3.0M |
+| Y3 | 50 | 300 | $2.5M | $0.8M | $3.6M |
+
+- Day 0/1 costs scale with sites deployed that year
+- Day 2 costs grow as more sites become operational
+
+#### One-Time vs Recurring Costs
+
+| Cost Type | Scope | Years Applied |
+|-----------|-------|---------------|
+| Day 0 (Procurement) | Network Global | Year 0 only |
+| Day 0 (Procurement) | Site Archetype | Years with deployments |
+| Day 1 (Installation) | Network Global | Year 0 only |
+| Day 1 (Installation) | Site Archetype | Years with deployments |
+| Day 2 (Operations) | All | Every year (cumulative scale) |
+
+**Network Global costs** (RF planning, network integration, etc.) are one-time charges in Year 0 only.
+
+**Archetype-scoped costs** appear in years where that archetype has deployments.
+
+**Fixed multiplier costs** (testing, integration) only appear in years with actual deployments - they are not charged in years with no new sites/CUs/DCs.
+
+**Component Location**: `src/components/summary/YearlyCostBreakdown.tsx`
+
+**Utility Location**: `src/lib/utils/yearly-breakdown.ts`
+
+**Component Location**: `src/components/summary/DomainDollarSummary.tsx`
 
 ---
 
@@ -226,7 +350,7 @@ Each day shows a breakdown by driver type:
 ```typescript
 // src/app/(main)/ran/page.tsx
 
-import { RanDollarSummary } from '@/components/ran/RanDollarSummary';
+import { DomainDollarSummary } from '@/components/summary/DomainDollarSummary';
 
 // Day1 service buckets - split by scaling driver
 const ranSiteInstallationBuckets = [
@@ -287,7 +411,7 @@ export default function RanPage() {
       )}
 
       {/* RAN $ Summary */}
-      {activeDay === 'ran_summary' && <RanDollarSummary />}
+      {activeDay === 'ran_summary' && <DomainDollarSummary domain="ran" />}
     </div>
   );
 }

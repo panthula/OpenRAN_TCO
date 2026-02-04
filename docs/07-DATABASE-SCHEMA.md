@@ -18,21 +18,21 @@ The database uses SQLite via Prisma ORM. The schema is designed for:
       │                     │                        │
       │                     ├──────────────────────>│
       │                     │                        │
-      │                     │     ┌──────────────────┐
-      │                     ├────<│  SiteArchetype   │
-      │                     │     └──────────────────┘
-      │                     │
-      │                     │     ┌──────────────────┐
-      │                     ├────<│     DcType       │
-      │                     │     └──────────────────┘
+      │                     │     ┌──────────────────┐     ┌──────────────────┐
+      │                     ├────<│  SiteArchetype   │────<│  DeploymentYear  │
+      │                     │     └──────────────────┘     └──────────────────┘
       │                     │
       │                     │     ┌──────────────────┐
       │                     ├────<│  ComputedFact    │
       │                     │     └──────────────────┘
       │                     │
       │                     │     ┌──────────────────┐
-      │                     └────<│    ChangeSet     │
-      │                           └──────────────────┘
+      │                     ├────<│    ChangeSet     │
+      │                     │     └──────────────────┘
+      │                     │
+      │                     │     ┌──────────────────┐     ┌──────────────────┐
+      │                     └────<│  AdjustmentSet   │────<│  AdjustmentRule  │
+      │                           └──────────────────┘     └──────────────────┘
       │
       │     ┌──────────────────┐     ┌──────────────────┐
       └────<│ SweepDefinition  │────<│    SweepRun      │
@@ -79,7 +79,6 @@ model ScenarioVersion {
   inputFacts     InputFact[]
   computedFacts  ComputedFact[]
   siteArchetypes SiteArchetype[]
-  dcTypes        DcType[]
   changeSets     ChangeSet[]
   sweepRuns      SweepRun[]
 
@@ -90,42 +89,51 @@ model ScenarioVersion {
 
 ### SiteArchetype
 
-Defines a type of cell site with quantity.
+Defines a type of cell site with quantity, CUs, DCs, and optional deployment schedule.
 
 ```prisma
 model SiteArchetype {
-  id                String @id @default(cuid())
-  scenarioVersionId String
-  name              String
-  numSites          Int
-  numCus            Int
-  description       String?
+  id                 String   @id @default(cuid())
+  scenarioVersionId  String
+  name               String
+  numSites           Int      // Total sites (derived from schedule if present)
+  numCus             Int      // Total CUs (derived from schedule if present)
+  numDcs             Int      @default(1)  // Total DCs (derived from schedule if present)
+  description        String?
+  deploymentYears    Int      @default(1)  // Number of years to deploy (1-10)
 
-  scenarioVersion ScenarioVersion @relation(...)
-  inputFacts      InputFact[]
+  scenarioVersion    ScenarioVersion @relation(...)
+  deploymentSchedule DeploymentYear[]
+  inputFacts         InputFact[]
 
   @@index([scenarioVersionId])
 }
 ```
 
-### DcType
+### DeploymentYear
 
-Defines a data center type with count.
+Stores per-year deployment counts for phased rollouts.
 
 ```prisma
-model DcType {
-  id                String @id @default(cuid())
-  scenarioVersionId String
-  name              String  // edge, regional, central
-  numDcs            Int
-  description       String?
+model DeploymentYear {
+  id            String @id @default(cuid())
+  archetypeId   String
+  yearIndex     Int    // 0-based: 0 = Year 1, 1 = Year 2, etc.
+  sitesDeployed Int    @default(0)
+  cusDeployed   Int    @default(0)
+  dcsDeployed   Int    @default(0)
 
-  scenarioVersion ScenarioVersion @relation(...)
-  inputFacts      InputFact[]
+  archetype     SiteArchetype @relation(...)
 
-  @@index([scenarioVersionId])
+  @@unique([archetypeId, yearIndex])
+  @@index([archetypeId])
 }
 ```
+
+**Usage Notes**:
+- `numSites/numCus/numDcs` are derived from `SUM(deploymentSchedule.sitesDeployed)` etc.
+- If no schedule exists, all deployments happen in Year 0 (backward compatible)
+- Day 0/1 CAPEX uses per-year counts; Day 2 OPEX uses cumulative counts
 
 ### InputFact
 
@@ -141,8 +149,8 @@ model InputFact {
   domain             String   // ran, cloud, oss
   layer              String   // hardware_bom, software, services, etc.
   bucket             String   // standardized bucket key
-  scopeType          String   // site_archetype, dc_type, network_global
-  scopeId            String?  // FK to SiteArchetype or DcType
+  scopeType          String   // site_archetype, network_global
+  scopeId            String?  // FK to SiteArchetype (if scopeType is site_archetype)
   driver             String   // scaling driver
   
   // Value
@@ -163,7 +171,6 @@ model InputFact {
 
   scenarioVersion    ScenarioVersion @relation(...)
   siteArchetype      SiteArchetype?  @relation(...)
-  dcType             DcType?         @relation(...)
 
   // Indexes for efficient querying
   @@index([scenarioVersionId])
@@ -266,13 +273,13 @@ Proposed changes from AI agent.
 model ChangeSet {
   id                String   @id @default(cuid())
   scenarioVersionId String
-  
+
   changes           String   // JSON array of operations
   rationale         String?
   prompt            String?
-  
+
   status            String   @default("proposed")
-  
+
   createdAt         DateTime @default(now())
   appliedAt         DateTime?
   resultVersionId   String?
@@ -283,6 +290,73 @@ model ChangeSet {
   @@index([status])
 }
 ```
+
+### AdjustmentSet
+
+Named collection of adjustment rules for what-if analysis. See [Adjustments](./09-ADJUSTMENTS.md) for full documentation.
+
+```prisma
+model AdjustmentSet {
+  id                String   @id @default(cuid())
+  scenarioVersionId String
+  name              String
+  description       String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  scenarioVersion   ScenarioVersion @relation(...)
+  rules             AdjustmentRule[]
+
+  @@index([scenarioVersionId])
+  @@index([scenarioVersionId, isActive])
+}
+```
+
+**Usage Notes**:
+- `isActive` controls whether rules are applied during TCO computation
+- Rules are applied in `priority` order (lower numbers first)
+- Multiple sets can be active simultaneously
+
+### AdjustmentRule
+
+Individual rule that modifies matching InputFacts during computation.
+
+```prisma
+model AdjustmentRule {
+  id              String   @id @default(cuid())
+  adjustmentSetId String
+
+  // Target dimensions (null = match all)
+  targetDay       String?  // day0, day1, day2, or null for all
+  targetDomain    String?  // ran, cloud, oss, or null for all
+  targetLayer     String?  // hardware_bom, software, etc., or null for all
+  targetBucket    String?  // specific bucket or null for all
+  targetScopeType String?  // site_archetype, dc_type, network_global, or null
+  targetScopeId   String?  // specific scope ID or null for all within scopeType
+
+  // Adjustment type and value
+  adjustmentType  String   // percentage, fixed, replace
+  adjustmentValue Float    // e.g., 10 for +10%, -50 for -$50, or absolute for replace
+
+  // Ordering and metadata
+  priority        Int      @default(0)  // Higher priority applied last
+  notes           String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  adjustmentSet   AdjustmentSet @relation(...)
+
+  @@index([adjustmentSetId])
+  @@index([adjustmentSetId, priority])
+}
+```
+
+**Adjustment Types**:
+- `percentage`: Multiplies value by `(1 + adjustmentValue/100)`. Use -10 for 10% decrease.
+- `fixed`: Adds adjustmentValue to the original value. Use -1000 to subtract $1000.
+- `replace`: Replaces the original value entirely with adjustmentValue.
 
 ## Query Examples
 
