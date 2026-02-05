@@ -4,7 +4,21 @@
 
 The taxonomy defines the canonical structure for all TCO inputs. It ensures every cost item is queryable by multiple dimensions and can be aggregated in various ways.
 
-**Location**: `src/lib/model/taxonomy.ts`
+**Location**: `src/lib/model/taxonomy/` (12 focused modules, re-exported via `index.ts` for backward compatibility)
+
+The taxonomy was split into focused modules:
+- `core.ts` - Days, Domains, Layers, ScopeTypes
+- `ran-buckets.ts` - RAN hardware and software buckets
+- `cloud-buckets.ts` - Cloud/CaaS license buckets
+- `oss-buckets.ts` - OSS hardware and software buckets
+- `services.ts` - Professional services buckets
+- `drivers.ts` - Scaling drivers
+- `assumptions.ts` - Model assumption buckets
+- `bucket-groups.ts` - Grouped bucket configurations
+- `input-config.ts` - Input configurations per day/domain
+- `types.ts` - TypeScript type definitions
+- `utils.ts` - Utility functions (getBucketLabel, etc.)
+- `index.ts` - Re-exports everything for backward compatibility
 
 ## Dimensional Axes
 

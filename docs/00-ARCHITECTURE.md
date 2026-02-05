@@ -55,12 +55,26 @@ tco-app/
 │   │       └── DomainDollarSummary.tsx  # Domain cost summary view
 │   └── lib/
 │       ├── model/             # Data model definitions
-│       │   ├── taxonomy.ts    # Bucket keys, domains, etc.
+│       │   ├── taxonomy/      # Bucket definitions (12 modules)
+│       │   │   ├── index.ts   # Re-exports all (backward compatible)
+│       │   │   ├── core.ts, ran-buckets.ts, cloud-buckets.ts, ...
 │       │   └── validation.ts  # Zod schemas
+│       ├── types/             # Consolidated type definitions
+│       │   ├── core.ts, adjustments.ts, summary.ts, agent.ts
+│       ├── utils/             # Utility functions
+│       │   ├── json-helpers.ts    # safeJsonParse, sumYearValues
+│       │   └── apply-adjustments.ts
 │       ├── compute/           # Computation engine
-│       │   └── engine.ts
+│       │   ├── engine.ts
+│       │   └── multipliers.ts # Centralized multiplier logic
+│       ├── config/            # Configuration
+│       │   └── domain-summary-config.ts
+│       ├── api/               # API utilities
+│       │   ├── errors.ts      # Standardized error handling
+│       │   └── agent/apply-changes.ts
 │       ├── store/             # State management
-│       │   └── scenario-store.ts
+│       │   ├── scenario-store.ts
+│       │   └── slices/        # Modular store slices
 │       └── db/                # Database client
 │           └── client.ts
 ├── prisma/

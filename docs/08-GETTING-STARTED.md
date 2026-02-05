@@ -45,6 +45,21 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### 6. Run Tests (Optional)
+
+The project includes 88 unit tests for critical utilities:
+
+```bash
+npm run test           # Run tests in watch mode
+npm run test:run       # Single test run
+npm run test:coverage  # Run with coverage report
+```
+
+Test files:
+- `src/lib/compute/multipliers.test.ts` - Multiplier logic (25 tests)
+- `src/lib/utils/json-helpers.test.ts` - JSON utilities (24 tests)
+- `src/lib/utils/apply-adjustments.test.ts` - Adjustment logic (39 tests)
+
 ## First Steps
 
 ### Create Your First Scenario

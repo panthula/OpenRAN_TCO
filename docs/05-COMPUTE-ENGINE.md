@@ -6,6 +6,11 @@ The compute engine calculates Total Cost of Ownership (TCO) by processing all In
 
 **Location**: `src/lib/compute/engine.ts`
 
+**Related Files**:
+- `src/lib/compute/multipliers.ts` - Centralized multiplier calculation logic
+- `src/lib/utils/json-helpers.ts` - `safeJsonParse()` and `sumYearValues()` utilities
+- `src/lib/utils/apply-adjustments.ts` - Adjustment rule application logic
+
 ## Core Functions
 
 ### computeTco(scenarioVersionId)
