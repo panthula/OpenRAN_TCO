@@ -63,4 +63,47 @@ export const ApiErrors = {
 
   internalError: (message: string = 'Internal server error') =>
     new ApiError(500, message, 'INTERNAL_ERROR'),
+
+  conflict: (message: string) =>
+    new ApiError(409, message, 'CONFLICT'),
+
+  validationError: (message: string, details?: unknown) =>
+    new ApiError(422, message, 'VALIDATION_ERROR', details),
 };
+
+/**
+ * Validate required fields in request body
+ */
+export function validateRequired<T extends object>(
+  data: T,
+  fields: (keyof T)[]
+): void {
+  const missing = fields.filter(field => data[field] === undefined || data[field] === null);
+  if (missing.length > 0) {
+    throw ApiErrors.badRequest(`Missing required fields: ${missing.join(', ')}`);
+  }
+}
+
+/**
+ * Parse and validate JSON request body
+ */
+export async function parseJsonBody<T>(request: Request): Promise<T> {
+  try {
+    return await request.json();
+  } catch {
+    throw ApiErrors.badRequest('Invalid JSON in request body');
+  }
+}
+
+/**
+ * Wrapper for API route handlers with automatic error handling
+ */
+export async function withErrorHandling<T>(
+  handler: () => Promise<T>
+): Promise<T | ReturnType<typeof handleApiError>> {
+  try {
+    return await handler();
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

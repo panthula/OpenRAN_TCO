@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/client';
 import { InputFactSchema } from '@/lib/model/validation';
-import { z, ZodError } from 'zod';
-import { Prisma } from '@prisma/client';
+import { z } from 'zod';
+import { handleApiError, ApiErrors } from '@/lib/api/errors';
 
 // GET /api/input-facts - Query input facts with filters
 export async function GET(request: NextRequest) {
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const scopeId = searchParams.get('scopeId');
 
     if (!scenarioVersionId) {
-      return NextResponse.json({ error: 'versionId is required' }, { status: 400 });
+      throw ApiErrors.badRequest('versionId is required');
     }
 
     const where: Record<string, unknown> = { scenarioVersionId };
@@ -39,8 +39,8 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(facts);
-  } catch {
-    return NextResponse.json({ error: 'Failed to fetch input facts' }, { status: 500 });
+  } catch (error) {
+    return handleApiError(error);
   }
 }
 
@@ -96,50 +96,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(results);
   } catch (error) {
-    // Handle Zod validation errors
-    if (error instanceof ZodError) {
-      const details = error.issues.map((e) => ({
-        path: e.path.join('.'),
-        message: e.message,
-      }));
-      return NextResponse.json(
-        { error: 'Validation failed', details },
-        { status: 400 }
-      );
-    }
-
-    // Handle Prisma known errors
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      const prismaError: { error: string; code: string; meta?: unknown } = {
-        error: 'Database operation failed',
-        code: error.code,
-      };
-      // Common Prisma error codes
-      if (error.code === 'P2002') {
-        prismaError.error = 'A record with this unique constraint already exists';
-      } else if (error.code === 'P2025') {
-        prismaError.error = 'Record not found for update';
-      } else if (error.code === 'P2003') {
-        prismaError.error = 'Foreign key constraint failed - referenced record does not exist';
-      }
-      // Include meta in dev for debugging
-      if (process.env.NODE_ENV === 'development') {
-        prismaError.meta = error.meta;
-      }
-      return NextResponse.json(prismaError, { status: 500 });
-    }
-
-    // Handle Prisma validation errors
-    if (error instanceof Prisma.PrismaClientValidationError) {
-      return NextResponse.json(
-        { error: 'Invalid data format for database operation', details: error.message },
-        { status: 400 }
-      );
-    }
-
-    // Generic error fallback
-    const message = error instanceof Error ? error.message : 'Failed to save input facts';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
@@ -150,7 +107,7 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json({ error: 'id is required' }, { status: 400 });
+      throw ApiErrors.badRequest('id is required');
     }
 
     await prisma.inputFact.delete({
@@ -158,8 +115,7 @@ export async function DELETE(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json({ error: 'Failed to delete input fact' }, { status: 500 });
+  } catch (error) {
+    return handleApiError(error);
   }
 }
-
