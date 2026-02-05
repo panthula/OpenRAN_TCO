@@ -11,20 +11,30 @@ npm run build            # Production build
 npm run lint             # Run ESLint
 ```
 
-### Database (Prisma + SQLite)
+### Database (Prisma - Dual Setup)
 
+**Local Development (SQLite):**
 ```bash
-npx prisma migrate dev   # Run migrations
-npx prisma generate      # Generate Prisma client
-npx prisma migrate reset # Reset database (destructive)
-npx prisma studio        # Open database GUI
+npm run db:local         # Generate client + push schema to dev.db
+npm run db:local:migrate # Run migrations (if using migration workflow)
+npm run db:local:studio  # Open Prisma Studio for local DB
 ```
+
+**Production (Vercel Postgres):**
+```bash
+npm run db:prod          # Generate client + push schema to Postgres
+npm run db:prod:studio   # Open Prisma Studio for production DB
+```
+
+**Environment Variables (Production - auto-set by Supabase integration):**
+- `POSTGRES_PRISMA_URL` - Pooled connection (for app)
+- `POSTGRES_URL_NON_POOLING` - Direct connection (for migrations)
 
 ## Architecture Overview
 
 This is a **Total Cost of Ownership (TCO) modeler** for OpenRAN mobile networks built with:
 - **Next.js 14+ (App Router)** with TypeScript
-- **SQLite** via Prisma ORM (can migrate to PostgreSQL)
+- **Dual Database**: SQLite (local dev) / Vercel Postgres (production) via Prisma ORM
 - **Zustand** for client state management
 - **Tailwind CSS** for styling with **Rakuten brand colors**
 - **Recharts** for visualizations

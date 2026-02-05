@@ -9,7 +9,12 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "prebuild": "tsc --noEmit",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "db:local": "prisma generate --schema=prisma/schema.sqlite.prisma && prisma db push --schema=prisma/schema.sqlite.prisma",
+    "db:local:migrate": "prisma migrate dev --schema=prisma/schema.sqlite.prisma",
+    "db:local:studio": "prisma studio --schema=prisma/schema.sqlite.prisma",
+    "db:prod": "prisma generate && prisma db push",
+    "db:prod:studio": "prisma studio"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.2.0",

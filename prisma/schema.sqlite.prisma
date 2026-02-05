@@ -1,4 +1,4 @@
-// OpenRAN TCO Database Schema
+// OpenRAN TCO Database Schema - SQLite version for local development
 // Designed for granular queries by day/domain/layer/bucket/scope
 
 generator client {
@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  // URL configured in prisma.config.ts (Supabase Postgres for production)
+  provider = "sqlite"
+  // URL configured in prisma.config.ts (file:./dev.db for local)
 }
 
 // ============================================================================
@@ -106,7 +106,7 @@ model DcType {
 model InputFact {
   id                 String   @id @default(cuid())
   scenarioVersionId  String
-  
+
   // Dimensional keys
   day                String   // day0, day1, day2
   domain             String   // ran, cloud, oss
@@ -115,11 +115,11 @@ model InputFact {
   scopeType          String   // site_archetype, dc_type, network_global
   scopeId            String?  // FK to SiteArchetype or DcType, null for global
   driver             String   // scaling driver
-  
+
   // Value
   valueNumber        Float
   valueJson          String?  // JSON for structured inputs (e.g., staffing drivers)
-  
+
   // Metadata
   unit               String   @default("USD")
   currency           String   @default("USD")
@@ -128,7 +128,7 @@ model InputFact {
   assumptionFlag     Boolean  @default(false)
   licenseModel       String?  // perpetual or subscription
   spreadYears        Int?     // for perpetual CAPEX spreading
-  
+
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -155,7 +155,7 @@ model InputFact {
 model ComputedFact {
   id                String @id @default(cuid())
   scenarioVersionId String
-  
+
   // Dimensional keys
   metric            String // total_capex, total_opex, tco, npv, etc.
   day               String?
@@ -163,13 +163,13 @@ model ComputedFact {
   layer             String?
   bucket            String?
   year              Int
-  
+
   // Values
   capex             Float  @default(0)
   opex              Float  @default(0)
   tco               Float  @default(0)
   npv               Float?
-  
+
   createdAt         DateTime @default(now())
 
   scenarioVersion   ScenarioVersion @relation(fields: [scenarioVersionId], references: [id], onDelete: Cascade)
@@ -189,11 +189,11 @@ model SweepDefinition {
   scenarioId  String
   name        String
   description String?
-  
+
   // Parameters to vary (JSON array)
   // Each: { bucket, scopeType, scopeId, minValue, maxValue, steps }
   parameters  String   // JSON
-  
+
   createdAt   DateTime @default(now())
 
   scenario    Scenario   @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
@@ -207,13 +207,13 @@ model SweepRun {
   sweepDefinitionId   String
   scenarioVersionId   String
   runIndex            Int
-  
+
   // Parameter values used for this run (JSON)
   parameterValues     String   // JSON
-  
+
   // Summary results (JSON)
   results             String?  // JSON with key metrics
-  
+
   createdAt           DateTime @default(now())
 
   sweepDefinition     SweepDefinition @relation(fields: [sweepDefinitionId], references: [id], onDelete: Cascade)
@@ -279,16 +279,16 @@ model AdjustmentRule {
 model ChangeSet {
   id                String   @id @default(cuid())
   scenarioVersionId String
-  
+
   // Proposed changes (JSON array)
   // Each: { operation: 'add'|'update'|'delete', factId?, inputData? }
   changes           String   // JSON
-  
+
   rationale         String?  // Agent's explanation
   prompt            String?  // User's original prompt
-  
+
   status            String   @default("proposed") // proposed, approved, rejected, applied
-  
+
   createdAt         DateTime @default(now())
   appliedAt         DateTime?
   resultVersionId   String?  // New version created after applying

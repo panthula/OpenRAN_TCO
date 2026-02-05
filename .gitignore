@@ -47,3 +47,4 @@ next-env.d.ts
 
 # database files
 *.db
+.env*.local
