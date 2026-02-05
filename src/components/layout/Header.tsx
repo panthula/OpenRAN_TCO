@@ -69,17 +69,19 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-gray-900/95 backdrop-blur border-b border-gray-800">
+      <header className="sticky top-0 z-40 bg-[#0d0f14]/95 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="flex items-center justify-between px-6 py-4">
           {/* Logo and title */}
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-red-700 to-purple-900">
+            <div className="flex items-center gap-3">
+              <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/20">
                 <Radio className="w-5 h-5 text-white" />
+                {/* Glow effect */}
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 blur-lg opacity-40" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-100">OpenRAN TCO</h1>
-                <p className="text-xs text-gray-500">Total Cost of Ownership Modeler</p>
+                <h1 className="text-xl font-serif text-slate-100 tracking-tight">OpenRAN TCO</h1>
+                <p className="text-xs text-slate-500">Total Cost of Ownership Modeler</p>
               </div>
             </div>
           </div>
@@ -89,34 +91,37 @@ export function Header() {
             <div className="relative">
               <button
                 onClick={() => setShowScenarioMenu(!showScenarioMenu)}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg hover:border-red-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 bg-[#181c25] border border-white/10 rounded-lg hover:border-amber-500/50 transition-all duration-200"
               >
-                {isLoading && <Loader2 className="w-4 h-4 animate-spin text-red-600" />}
-                <span className="text-sm text-gray-300">
+                {isLoading && <Loader2 className="w-4 h-4 animate-spin text-amber-500" />}
+                <span className="text-sm text-slate-300">
                   {currentScenario ? currentScenario.name : 'Select Scenario'}
                 </span>
                 {currentVersion && (
-                  <span className="px-2 py-0.5 text-xs bg-gray-700 rounded text-red-500">
+                  <span className="px-2 py-0.5 text-xs bg-[#232933] rounded-full text-amber-400 border border-amber-500/20">
                     v{currentVersion.versionNum}
                   </span>
                 )}
-                <ChevronDown className="w-4 h-4 text-gray-500" />
+                <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${showScenarioMenu ? 'rotate-180' : ''}`} />
               </button>
 
               {showScenarioMenu && (
-                <div className="absolute right-0 mt-2 w-72 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-50">
-                  <div className="p-2 border-b border-gray-700">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider px-2">Scenarios</p>
+                <div className="absolute right-0 mt-2 w-80 bg-[#12151c] border border-white/10 rounded-xl shadow-2xl shadow-black/50 z-50 overflow-hidden animate-scale-in">
+                  {/* Header */}
+                  <div className="px-4 py-3 border-b border-white/[0.06]">
+                    <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Scenarios</p>
                   </div>
+
+                  {/* Scenario List */}
                   <div className="max-h-64 overflow-y-auto">
                     {scenarios.length === 0 ? (
-                      <p className="px-4 py-3 text-sm text-gray-500">No scenarios yet</p>
+                      <p className="px-4 py-4 text-sm text-slate-500 text-center">No scenarios yet</p>
                     ) : (
                       displayedScenarios.map((scenario) => (
                         <div
                           key={scenario.id}
-                          className={`group flex items-center justify-between px-4 py-3 hover:bg-gray-800 transition-colors ${
-                            currentScenario?.id === scenario.id ? 'bg-gray-800' : ''
+                          className={`group flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors ${
+                            currentScenario?.id === scenario.id ? 'bg-amber-500/5 border-l-2 border-amber-500' : 'border-l-2 border-transparent'
                           }`}
                         >
                           <button
@@ -124,21 +129,21 @@ export function Header() {
                             className="flex-1 text-left"
                           >
                             <div className="flex items-center gap-2">
-                              <span className="text-sm text-gray-200">{scenario.name}</span>
+                              <span className="text-sm text-slate-200 font-medium">{scenario.name}</span>
                               {scenario.isBaseline && (
-                                <span className="px-2 py-0.5 text-xs bg-red-700/20 text-red-500 rounded">
+                                <span className="px-2 py-0.5 text-xs bg-amber-500/15 text-amber-400 rounded-full border border-amber-500/30">
                                   Baseline
                                 </span>
                               )}
                             </div>
                             {scenario.description && (
-                              <p className="text-xs text-gray-500 mt-1">{scenario.description}</p>
+                              <p className="text-xs text-slate-500 mt-1 line-clamp-1">{scenario.description}</p>
                             )}
                           </button>
                           <button
                             onClick={(e) => handleDeleteScenario(e, scenario.id)}
                             disabled={deletingId === scenario.id}
-                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-gray-700 rounded opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
+                            className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
                             title="Delete scenario"
                           >
                             {deletingId === scenario.id ? (
@@ -151,16 +156,18 @@ export function Header() {
                       ))
                     )}
                   </div>
+
+                  {/* Footer */}
                   {hasMoreScenarios && (
                     <>
-                      <div className="border-t border-gray-700" />
+                      <div className="border-t border-white/[0.06]" />
                       <Link
                         href="/scenarios"
                         onClick={() => setShowScenarioMenu(false)}
-                        className="flex items-center justify-between px-4 py-3 text-sm text-red-500 hover:bg-gray-800 transition-colors"
+                        className="flex items-center justify-between px-4 py-3 text-sm text-amber-400 hover:bg-white/5 transition-colors"
                       >
                         <span>Manage All Scenarios</span>
-                        <span className="px-2 py-0.5 text-xs bg-gray-700 rounded">{scenarios.length}</span>
+                        <span className="px-2 py-0.5 text-xs bg-[#232933] rounded-full text-slate-400">{scenarios.length}</span>
                       </Link>
                     </>
                   )}
@@ -227,7 +234,7 @@ export function Header() {
         title="Clone Scenario"
       >
         <div className="space-y-4">
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-slate-400">
             Create a copy of &ldquo;{currentScenario?.name}&rdquo; for what-if analysis.
           </p>
           <Input
@@ -249,4 +256,3 @@ export function Header() {
     </>
   );
 }
-

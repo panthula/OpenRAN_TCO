@@ -16,6 +16,12 @@ import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { formatCurrency } from '@/lib/utils/currency';
 import { DayLabels, DomainLabels, Day, Domain } from '@/lib/model/taxonomy';
 
+// Chart color palette - Obsidian Finance theme
+const CHART_COLORS = {
+  increase: '#ef4444', // Red for cost increases
+  decrease: '#22c55e', // Green for savings/decreases
+};
+
 interface ComparisonTornadoProps {
   baselineByDayDomain: Record<string, { capex: number; opex: number; tco: number }>;
   comparisonByDayDomain: Record<string, { capex: number; opex: number; tco: number }>;
@@ -68,7 +74,7 @@ export function ComparisonTornado({
           percentChange,
           baseValue,
           compValue,
-          fill: delta < 0 ? '#10b981' : '#D8000D', // green for savings, Monza red for increases
+          fill: delta < 0 ? CHART_COLORS.decrease : CHART_COLORS.increase,
         });
       }
     }
@@ -84,9 +90,9 @@ export function ComparisonTornado({
       <Card>
         <CardHeader title={title} description={description} />
         <CardContent>
-          <div className="text-center py-8 text-gray-400">
+          <div className="text-center py-8 text-slate-400">
             <p>No cost differences to display</p>
-            <p className="text-sm mt-1">The scenarios have identical costs across all categories</p>
+            <p className="text-sm mt-1 text-slate-500">The scenarios have identical costs across all categories</p>
           </div>
         </CardContent>
       </Card>
@@ -107,18 +113,19 @@ export function ComparisonTornado({
             layout="vertical"
             margin={{ top: 20, right: 30, left: 140, bottom: 20 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
             <XAxis
               type="number"
               tickFormatter={(v) => formatCurrency(v)}
-              stroke="#9ca3af"
+              stroke="#64748b"
+              tick={{ fill: '#94a3b8', fontSize: 12 }}
               domain={axisDomain}
             />
             <YAxis
               type="category"
               dataKey="name"
-              stroke="#9ca3af"
-              tick={{ fontSize: 12 }}
+              stroke="#64748b"
+              tick={{ fill: '#94a3b8', fontSize: 12 }}
               width={130}
             />
             <Tooltip
@@ -126,16 +133,16 @@ export function ComparisonTornado({
                 if (!active || !payload?.[0]) return null;
                 const data = payload[0].payload as TornadoItem;
                 return (
-                  <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 shadow-lg">
-                    <p className="font-medium text-gray-100">{data.name}</p>
-                    <div className="mt-2 space-y-1 text-sm">
-                      <p className="text-gray-400">
-                        Baseline: {formatCurrency(data.baseValue)}
+                  <div className="bg-[#181c25] border border-white/10 rounded-lg p-3 shadow-xl">
+                    <p className="font-medium text-slate-100 mb-2">{data.name}</p>
+                    <div className="space-y-1 text-sm">
+                      <p className="text-slate-400">
+                        Baseline: <span className="font-mono text-slate-200">{formatCurrency(data.baseValue)}</span>
                       </p>
-                      <p className="text-gray-400">
-                        Comparison: {formatCurrency(data.compValue)}
+                      <p className="text-slate-400">
+                        Comparison: <span className="font-mono text-slate-200">{formatCurrency(data.compValue)}</span>
                       </p>
-                      <p className={data.delta < 0 ? 'text-green-400' : 'text-red-400'}>
+                      <p className={`font-mono ${data.delta < 0 ? 'text-green-400' : 'text-red-400'}`}>
                         Delta: {data.delta >= 0 ? '+' : ''}{formatCurrency(data.delta)}
                         {' '}({data.percentChange >= 0 ? '+' : ''}{data.percentChange.toFixed(1)}%)
                       </p>
@@ -144,7 +151,7 @@ export function ComparisonTornado({
                 );
               }}
             />
-            <ReferenceLine x={0} stroke="#9ca3af" strokeWidth={2} />
+            <ReferenceLine x={0} stroke="#94a3b8" strokeWidth={2} />
             <Bar dataKey="delta" radius={[0, 4, 4, 0]}>
               {tornadoData.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -155,12 +162,12 @@ export function ComparisonTornado({
 
         <div className="flex justify-center gap-6 mt-4 text-xs">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-green-500" />
-            <span className="text-gray-400">Savings (Cost Decrease)</span>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: CHART_COLORS.decrease }} />
+            <span className="text-slate-400">Savings (Cost Decrease)</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-red-500" />
-            <span className="text-gray-400">Cost Increase</span>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: CHART_COLORS.increase }} />
+            <span className="text-slate-400">Cost Increase</span>
           </div>
         </div>
 
@@ -168,26 +175,26 @@ export function ComparisonTornado({
         <div className="mt-6 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-gray-400 text-left border-b border-gray-700">
-                <th className="pb-3 pr-4">Category</th>
-                <th className="pb-3 pr-4 text-right">Baseline</th>
-                <th className="pb-3 pr-4 text-right">Comparison</th>
-                <th className="pb-3 text-right">Change</th>
+              <tr className="text-slate-500 text-left border-b border-white/10">
+                <th className="pb-3 pr-4 font-medium">Category</th>
+                <th className="pb-3 pr-4 text-right font-medium">Baseline</th>
+                <th className="pb-3 pr-4 text-right font-medium">Comparison</th>
+                <th className="pb-3 text-right font-medium">Change</th>
               </tr>
             </thead>
-            <tbody className="text-gray-300">
+            <tbody className="text-slate-300">
               {tornadoData.slice(0, 10).map((item) => (
-                <tr key={item.key} className="border-b border-gray-700/50">
-                  <td className="py-2 pr-4">{item.name}</td>
-                  <td className="py-2 pr-4 text-right font-mono">
+                <tr key={item.key} className="border-b border-white/[0.04]">
+                  <td className="py-3 pr-4">{item.name}</td>
+                  <td className="py-3 pr-4 text-right font-mono text-slate-400">
                     {formatCurrency(item.baseValue)}
                   </td>
-                  <td className="py-2 pr-4 text-right font-mono">
+                  <td className="py-3 pr-4 text-right font-mono text-slate-400">
                     {formatCurrency(item.compValue)}
                   </td>
-                  <td className={`py-2 text-right font-mono ${item.delta < 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <td className={`py-3 text-right font-mono ${item.delta < 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {item.delta >= 0 ? '+' : ''}{formatCurrency(item.delta)}
-                    <span className="text-xs text-gray-500 ml-1">
+                    <span className="text-xs text-slate-500 ml-1">
                       ({item.percentChange >= 0 ? '+' : ''}{item.percentChange.toFixed(1)}%)
                     </span>
                   </td>
@@ -196,7 +203,7 @@ export function ComparisonTornado({
             </tbody>
           </table>
           {tornadoData.length > 10 && (
-            <p className="text-center text-xs text-gray-500 mt-2">
+            <p className="text-center text-xs text-slate-500 mt-3">
               Showing top 10 of {tornadoData.length} categories
             </p>
           )}

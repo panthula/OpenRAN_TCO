@@ -48,11 +48,11 @@ export function Toggle({
         onClick={() => !disabled && onChange(!checked)}
         className={`
           relative inline-flex shrink-0 ${track} rounded-full
-          transition-colors duration-200 ease-in-out
-          focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-[#0a0e17]
+          transition-all duration-200 ease-in-out
+          focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#08090c]
           ${checked
-            ? 'bg-gradient-to-r from-cyan-500 to-cyan-600'
-            : 'bg-gray-700'
+            ? 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+            : 'bg-[#232933]'
           }
           ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}
         `}
@@ -69,10 +69,10 @@ export function Toggle({
       {(label || description) && (
         <div className="flex flex-col">
           {label && (
-            <span className="text-sm font-medium text-gray-200">{label}</span>
+            <span className="text-sm font-medium text-slate-200">{label}</span>
           )}
           {description && (
-            <span className="text-xs text-gray-400">{description}</span>
+            <span className="text-xs text-slate-500">{description}</span>
           )}
         </div>
       )}

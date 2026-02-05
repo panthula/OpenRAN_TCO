@@ -36,19 +36,27 @@ This is a **Total Cost of Ownership (TCO) modeler** for OpenRAN mobile networks 
 - **Next.js 14+ (App Router)** with TypeScript
 - **Dual Database**: SQLite (local dev) / Vercel Postgres (production) via Prisma ORM
 - **Zustand** for client state management
-- **Tailwind CSS** for styling with **Rakuten brand colors**
+- **Tailwind CSS** for styling with **Obsidian Finance** dark theme
 - **Recharts** for visualizations
 
-### Color Palette (Rakuten Brand)
+### Color Palette (Obsidian Finance Theme)
 
 | Role | Color | Hex |
 |------|-------|-----|
-| Primary Accent | Rakuten Red | `#BF0000` |
-| Secondary Accent | Honey Flower | `#5F1C6B` |
-| Success | Emerald | `#10b981` |
+| Primary Accent | Amber | `#f59e0b` |
+| Secondary Accent | Copper/Orange | `#ea580c` |
+| Success | Green | `#22c55e` |
 | Warning | Amber | `#f59e0b` |
-| Danger | Monza Red | `#D8000D` |
-| Lighter Red (charts) | Burnt Sienna | `#ED5050` |
+| Danger | Red | `#ef4444` |
+| Chart Primary | Amber | `#f59e0b` |
+| Chart Secondary | Violet | `#8b5cf6` |
+| Chart Tertiary | Cyan | `#06b6d4` |
+
+**Background Scale (Obsidian):**
+- `#08090c` (950) - Page background
+- `#12151c` (850) - Card backgrounds
+- `#181c25` (800) - Modals, tooltips
+- `#232933` (700) - Interactive elements
 
 See `docs/11-DESIGN-SYSTEM.md` for complete color documentation.
 
@@ -177,10 +185,10 @@ src/
 | `src/app/api/agent/propose/route.ts` | Generate AI-powered proposals |
 | `src/app/api/agent/apply/route.ts` | Apply approved changes with version creation |
 | `src/app/api/agent/create-rule/route.ts` | Convert proposals to adjustment rules |
-| `src/app/globals.css` | CSS variables for Rakuten brand colors and global styles |
-| `src/components/ui/Button.tsx` | Primary button component with brand styling |
-| `src/components/layout/Header.tsx` | App header with brand logo gradient |
-| `src/components/layout/Sidebar.tsx` | Navigation sidebar with brand colors |
+| `src/app/globals.css` | CSS variables for Obsidian Finance theme and global styles |
+| `src/components/ui/Button.tsx` | Primary button component with amber gradient styling |
+| `src/components/layout/Header.tsx` | App header with amber/orange logo gradient |
+| `src/components/layout/Sidebar.tsx` | Navigation sidebar with domain-specific gradient icons |
 
 ## Common Tasks
 
@@ -230,20 +238,20 @@ Key files:
 
 ### Update Color Palette
 
-To modify the brand colors:
-1. Update CSS variables in `src/app/globals.css` (lines 10-14, 21)
-2. Update Button component in `src/components/ui/Button.tsx`
-3. Update Header gradient in `src/components/layout/Header.tsx`
-4. Update Sidebar in `src/components/layout/Sidebar.tsx`
-5. Update dashboard chart colors (hardcoded hex values):
-   - `src/components/dashboard/DomainImpact.tsx`
-   - `src/components/dashboard/WaterfallChart.tsx`
-   - `src/components/dashboard/DeltaWaterfall.tsx`
-   - `src/components/dashboard/SensitivityTornado.tsx`
-   - `src/components/dashboard/ScenarioComparison.tsx`
-   - `src/components/dashboard/ComparisonTornado.tsx`
+The app uses the **Obsidian Finance** dark theme with warm amber/copper accents. To modify colors:
 
-See `docs/11-DESIGN-SYSTEM.md` for complete color documentation.
+1. **CSS Variables**: Update `src/app/globals.css` - contains all obsidian background scale, accent colors, chart colors, and semantic colors
+2. **UI Components**: Update component files in `src/components/ui/` (Button, Card, Input, Modal, Select, Tabs, Toggle)
+3. **Layout**: Update `src/components/layout/Header.tsx` and `Sidebar.tsx`
+4. **Chart Colors**: Each chart component has a `CHART_COLORS` constant:
+   - `src/components/dashboard/DomainImpact.tsx` - day0/day1/day2 colors
+   - `src/components/dashboard/WaterfallChart.tsx` - total/increase/decrease
+   - `src/components/dashboard/DeltaWaterfall.tsx` - baseline/increase/decrease/comparison
+   - `src/components/dashboard/SensitivityTornado.tsx` - increase/decrease
+   - `src/components/dashboard/ScenarioComparison.tsx` - capex/opex
+   - `src/components/dashboard/ComparisonTornado.tsx` - increase/decrease
+
+See `docs/11-DESIGN-SYSTEM.md` for complete Obsidian Finance documentation.
 
 ### Multi-Scenario Comparison
 
@@ -303,4 +311,4 @@ Comprehensive docs in `/docs/`:
 - `08-GETTING-STARTED.md` - Setup and usage guide
 - `09-ADJUSTMENTS.md` - What-if adjustment modifiers documentation
 - `10-SCENARIO-COMPARISON.md` - Multi-scenario comparison feature
-- `11-DESIGN-SYSTEM.md` - Color palette, typography, and component styling (Rakuten brand)
+- `11-DESIGN-SYSTEM.md` - Obsidian Finance design system (colors, typography, components, animations)

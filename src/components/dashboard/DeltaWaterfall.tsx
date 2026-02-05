@@ -16,6 +16,13 @@ import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { formatCurrency } from '@/lib/utils/currency';
 import { DayLabels, DomainLabels, Day, Domain } from '@/lib/model/taxonomy';
 
+// Chart color palette - Obsidian Finance theme
+const CHART_COLORS = {
+  total: '#f59e0b',    // Amber for totals
+  increase: '#ef4444', // Red for cost increases
+  decrease: '#22c55e', // Green for savings/decreases
+};
+
 interface DeltaWaterfallProps {
   baselineName: string;
   comparisonName: string;
@@ -63,7 +70,7 @@ export function DeltaWaterfall({
       delta: baselineTco,
       start: 0,
       end: baselineTco,
-      fill: '#BF0000', // Rakuten red for totals
+      fill: CHART_COLORS.total,
       percentChange: 0,
       isTotal: true,
     });
@@ -101,7 +108,7 @@ export function DeltaWaterfall({
         delta,
         start: Math.min(runningTotal, newTotal),
         end: Math.max(runningTotal, newTotal),
-        fill: delta < 0 ? '#10b981' : '#D8000D', // green for savings, Monza red for increases
+        fill: delta < 0 ? CHART_COLORS.decrease : CHART_COLORS.increase,
         percentChange,
       });
 
@@ -114,7 +121,7 @@ export function DeltaWaterfall({
       delta: comparisonTco,
       start: 0,
       end: comparisonTco,
-      fill: '#BF0000', // Rakuten red for totals
+      fill: CHART_COLORS.total,
       percentChange: baselineTco > 0 ? ((comparisonTco - baselineTco) / baselineTco) * 100 : 0,
       isTotal: true,
     });
@@ -132,55 +139,56 @@ export function DeltaWaterfall({
         {/* Summary */}
         <div className="flex justify-center gap-8 mb-6 text-sm">
           <div className="text-center">
-            <p className="text-gray-400">Baseline</p>
-            <p className="text-xl font-bold text-cyan-400">{formatCurrency(baselineTco)}</p>
+            <p className="text-slate-500 text-xs uppercase tracking-wider mb-1">Baseline</p>
+            <p className="text-xl font-mono font-bold text-amber-400">{formatCurrency(baselineTco)}</p>
           </div>
           <div className="text-center">
-            <p className="text-gray-400">Delta</p>
-            <p className={`text-xl font-bold ${totalDelta < 0 ? 'text-green-400' : 'text-red-400'}`}>
+            <p className="text-slate-500 text-xs uppercase tracking-wider mb-1">Delta</p>
+            <p className={`text-xl font-mono font-bold ${totalDelta < 0 ? 'text-green-400' : 'text-red-400'}`}>
               {totalDelta >= 0 ? '+' : ''}{formatCurrency(totalDelta)}
-              <span className="text-sm ml-1">({totalPercentChange >= 0 ? '+' : ''}{totalPercentChange.toFixed(1)}%)</span>
+              <span className="text-sm ml-1 opacity-75">({totalPercentChange >= 0 ? '+' : ''}{totalPercentChange.toFixed(1)}%)</span>
             </p>
           </div>
           <div className="text-center">
-            <p className="text-gray-400">Result</p>
-            <p className="text-xl font-bold text-cyan-400">{formatCurrency(comparisonTco)}</p>
+            <p className="text-slate-500 text-xs uppercase tracking-wider mb-1">Result</p>
+            <p className="text-xl font-mono font-bold text-amber-400">{formatCurrency(comparisonTco)}</p>
           </div>
         </div>
 
         <ResponsiveContainer width="100%" height={350}>
           <BarChart data={waterfallData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
             <XAxis
               dataKey="name"
-              stroke="#9ca3af"
-              tick={{ fontSize: 11 }}
+              stroke="#64748b"
+              tick={{ fill: '#94a3b8', fontSize: 11 }}
               interval={0}
               angle={-45}
               textAnchor="end"
             />
             <YAxis
               tickFormatter={(v) => formatCurrency(v)}
-              stroke="#9ca3af"
+              stroke="#64748b"
+              tick={{ fill: '#94a3b8', fontSize: 12 }}
             />
             <Tooltip
               content={({ active, payload }) => {
                 if (!active || !payload?.[0]) return null;
                 const data = payload[0].payload as WaterfallSegment;
                 return (
-                  <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 shadow-lg">
-                    <p className="font-medium text-gray-100">{data.name}</p>
+                  <div className="bg-[#181c25] border border-white/10 rounded-lg p-3 shadow-xl">
+                    <p className="font-medium text-slate-100 mb-2">{data.name}</p>
                     {data.isTotal ? (
-                      <p className="text-cyan-400">
+                      <p className="text-amber-400 font-mono">
                         Total: {formatCurrency(data.delta)}
                       </p>
                     ) : (
                       <>
-                        <p className={data.delta < 0 ? 'text-green-400' : 'text-red-400'}>
+                        <p className={`font-mono ${data.delta < 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {data.delta >= 0 ? '+' : ''}{formatCurrency(data.delta)}
                         </p>
                         {data.percentChange !== 0 && (
-                          <p className="text-gray-400 text-sm">
+                          <p className="text-slate-500 text-sm mt-1">
                             {data.percentChange >= 0 ? '+' : ''}{data.percentChange.toFixed(1)}% change
                           </p>
                         )}
@@ -190,7 +198,7 @@ export function DeltaWaterfall({
                 );
               }}
             />
-            <ReferenceLine y={0} stroke="#6b7280" />
+            <ReferenceLine y={0} stroke="#64748b" />
             {/* Background bar (invisible, used for stacking) */}
             <Bar dataKey="start" stackId="a" fill="transparent" />
             {/* Visible bar showing the delta */}
@@ -204,16 +212,16 @@ export function DeltaWaterfall({
 
         <div className="flex justify-center gap-6 mt-4 text-xs">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#BF0000' }} />
-            <span className="text-gray-400">Total TCO</span>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: CHART_COLORS.total }} />
+            <span className="text-slate-400">Total TCO</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-green-500" />
-            <span className="text-gray-400">Savings</span>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: CHART_COLORS.decrease }} />
+            <span className="text-slate-400">Savings</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#D8000D' }} />
-            <span className="text-gray-400">Cost Increase</span>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: CHART_COLORS.increase }} />
+            <span className="text-slate-400">Cost Increase</span>
           </div>
         </div>
       </CardContent>

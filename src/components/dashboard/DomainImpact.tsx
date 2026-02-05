@@ -15,6 +15,13 @@ import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { formatCurrency } from '@/lib/utils/currency';
 import { DomainLabels, DayLabels } from '@/lib/model/taxonomy';
 
+// Chart color palette - Obsidian Finance theme
+const CHART_COLORS = {
+  day0: '#f59e0b', // Amber - Day 0
+  day1: '#8b5cf6', // Violet - Day 1
+  day2: '#06b6d4', // Cyan - Day 2
+};
+
 interface DomainImpactData {
   domain: string;
   day0: number;
@@ -74,14 +81,16 @@ export function DomainImpact({
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
             <XAxis
               dataKey="domain"
-              stroke="#9ca3af"
+              stroke="#64748b"
+              tick={{ fill: '#94a3b8', fontSize: 12 }}
             />
             <YAxis
               tickFormatter={(v) => formatCurrency(v)}
-              stroke="#9ca3af"
+              stroke="#64748b"
+              tick={{ fill: '#94a3b8', fontSize: 12 }}
             />
             <Tooltip
               formatter={(value, name) => [
@@ -89,38 +98,42 @@ export function DomainImpact({
                 DayLabels[name as keyof typeof DayLabels] || name
               ]}
               contentStyle={{
-                backgroundColor: '#1f2937',
-                border: '1px solid #374151',
+                backgroundColor: '#181c25',
+                border: '1px solid rgba(255,255,255,0.1)',
                 borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
               }}
+              labelStyle={{ color: '#f1f5f9' }}
+              itemStyle={{ color: '#94a3b8' }}
             />
             <Legend
               formatter={(value) => DayLabels[value as keyof typeof DayLabels] || value}
+              wrapperStyle={{ color: '#94a3b8' }}
             />
-            <Bar dataKey="day0" name="day0" stackId="a" fill="#BF0000" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="day1" name="day1" stackId="a" fill="#5F1C6B" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="day2" name="day2" stackId="a" fill="#ED5050" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="day0" name="day0" stackId="a" fill={CHART_COLORS.day0} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="day1" name="day1" stackId="a" fill={CHART_COLORS.day1} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="day2" name="day2" stackId="a" fill={CHART_COLORS.day2} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
 
         {/* Domain Summary */}
         <div className="mt-6 space-y-3">
           {domainTotals.map(d => (
-            <div key={d.domain} className="flex items-center justify-between">
-              <span className="text-gray-400">{d.domain}</span>
+            <div key={d.domain} className="flex items-center justify-between py-2 border-b border-white/[0.06] last:border-0">
+              <span className="text-slate-400">{d.domain}</span>
               <div className="flex items-center gap-4">
-                <span className="font-semibold text-gray-200">
+                <span className="font-mono font-semibold text-slate-200">
                   {formatCurrency(d.total)}
                 </span>
-                <span className="text-sm text-gray-500 w-16 text-right">
+                <span className="text-sm text-slate-500 w-16 text-right">
                   {grandTotal > 0 ? ((d.total / grandTotal) * 100).toFixed(1) : 0}%
                 </span>
               </div>
             </div>
           ))}
-          <div className="flex items-center justify-between pt-3 border-t border-gray-700">
-            <span className="text-gray-300 font-medium">Total</span>
-            <span className="font-bold text-gray-100">{formatCurrency(grandTotal)}</span>
+          <div className="flex items-center justify-between pt-3 border-t border-white/10">
+            <span className="text-slate-300 font-medium">Total</span>
+            <span className="font-mono font-bold text-amber-400">{formatCurrency(grandTotal)}</span>
           </div>
         </div>
       </CardContent>
