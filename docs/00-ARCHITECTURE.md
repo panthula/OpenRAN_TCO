@@ -9,7 +9,7 @@ This document provides a comprehensive overview of the OpenRAN TCO Modeler appli
 - **Frontend**: Next.js 14+ (App Router) with TypeScript
 - **Styling**: Tailwind CSS with Rakuten brand colors (see [Design System](./11-DESIGN-SYSTEM.md))
 - **State Management**: Zustand
-- **Database**: SQLite via Prisma ORM (can be migrated to PostgreSQL)
+- **Database**: SQLite (local) / Supabase Postgres (production) via Prisma ORM
 - **Charts**: Recharts
 - **Icons**: Lucide React
 

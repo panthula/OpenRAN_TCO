@@ -107,7 +107,7 @@ See the [docs/](./docs/) folder for comprehensive documentation:
 
 - **Frontend**: Next.js 14+ (App Router), TypeScript, Tailwind CSS
 - **State**: Zustand
-- **Database**: SQLite via Prisma ORM
+- **Database**: Dual Database: SQLite (local) / Supabase Postgres (production) via Prisma ORM
 - **Charts**: Recharts
 - **Icons**: Lucide React
 

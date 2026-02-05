@@ -2,7 +2,13 @@
 
 ## Overview
 
-The database uses SQLite via Prisma ORM. The schema is designed for:
+The database uses a dual setup:
+- **Local Development:** SQLite (`dev.db`) via Prisma with better-sqlite3 adapter
+- **Production:** Supabase Postgres via Prisma with pg adapter
+
+Both databases use identical schemas. See `prisma/schema.prisma` (PostgreSQL) and `prisma/schema.sqlite.prisma` (SQLite).
+
+The schema is designed for:
 - **Versioned scenarios**: Each change creates a new immutable version
 - **Granular querying**: Every input queryable by day/domain/layer/bucket
 - **Efficient computation**: Computed results stored for fast dashboard queries

@@ -20,14 +20,19 @@ cd C:\Users\sandeep.panthula\Desktop\OpenRAN_TCO\tco-app
 npm install
 ```
 
-### 3. Set Up Database
+### 3. Database Setup
 
+**Local Development (SQLite):**
 ```bash
-# Run migrations
-npx prisma migrate dev
+npm run db:local         # Generate client + push schema to dev.db
+npm run db:local:studio  # Open Prisma Studio for local DB
+```
 
-# Generate Prisma client
-npx prisma generate
+**Production (Supabase Postgres):**
+Production database is configured via Vercel environment variables.
+```bash
+npm run db:prod          # Generate client + push schema
+npm run db:prod:studio   # Open Prisma Studio for production
 ```
 
 ### 4. Start Development Server
@@ -174,8 +179,12 @@ Edit `src/lib/compute/engine.ts`:
 Create `.env` file in project root:
 
 ```env
-# Database
+# Local Database (SQLite - default)
 DATABASE_URL="file:./prisma/dev.db"
+
+# Production Database (auto-set by Supabase integration)
+POSTGRES_PRISMA_URL=...     # Pooled connection for app
+POSTGRES_URL_NON_POOLING=...  # Direct connection for migrations
 
 # AI API Keys (optional)
 OPENAI_API_KEY="sk-..."
