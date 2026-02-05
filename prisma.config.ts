@@ -25,13 +25,8 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    // Production: Supabase Postgres
-    // - POSTGRES_PRISMA_URL: pooled connection (port 6543) for app runtime
-    // - POSTGRES_URL_NON_POOLING: session mode (port 5432) for migrations/schema push
+    // Production: Supabase Postgres (pooled connection)
     // Local: SQLite file
     url: getDatabaseUrl(),
-    directUrl: isProduction
-      ? process.env["POSTGRES_URL_NON_POOLING"]
-      : undefined,
   },
 });

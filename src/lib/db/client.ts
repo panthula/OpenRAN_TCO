@@ -6,9 +6,17 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient(): PrismaClient {
-  // In production (Vercel), use standard PostgreSQL connection
+  // In production (Vercel), use PostgreSQL with pg adapter
   if (process.env.NODE_ENV === 'production') {
+    const { PrismaPg } = require('@prisma/adapter-pg');
+    const { Pool } = require('pg');
+
+    const connectionString = process.env.POSTGRES_PRISMA_URL;
+    const pool = new Pool({ connectionString });
+    const adapter = new PrismaPg(pool);
+
     return new PrismaClient({
+      adapter,
       log: ['error'],
       errorFormat: 'minimal',
     });
