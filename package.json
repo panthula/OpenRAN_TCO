@@ -9,7 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "prebuild": "tsc --noEmit",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate --schema=prisma/schema.prisma",
     "db:local": "prisma generate --schema=prisma/schema.sqlite.prisma && prisma db push --schema=prisma/schema.sqlite.prisma",
     "db:local:migrate": "prisma migrate dev --schema=prisma/schema.sqlite.prisma",
     "db:local:studio": "prisma studio --schema=prisma/schema.sqlite.prisma",
