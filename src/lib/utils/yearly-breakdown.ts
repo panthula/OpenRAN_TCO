@@ -4,165 +4,26 @@
  */
 
 import { type Domain } from '@/lib/model/taxonomy';
-import { applyAdjustmentsToFacts, type AdjustmentSet } from './apply-adjustments';
+import { applyAdjustmentsToFacts } from './apply-adjustments';
+import { getMultiplierForCounts } from '@/lib/compute/multipliers';
+import type {
+  SiteArchetype,
+  InputFact,
+  AdjustmentSet,
+  YearArchetypeCosts,
+  YearlySummary,
+  YearlyCostBreakdown,
+} from '@/lib/types';
 
-// Types from scenario store (duplicated here for utility independence)
-interface DeploymentYear {
-  id?: string;
-  archetypeId?: string;
-  yearIndex: number;
-  sitesDeployed: number;
-  cusDeployed: number;
-  dcsDeployed: number;
-}
+// Re-export types for backward compatibility
+export type { YearArchetypeCosts, YearlySummary, YearlyCostBreakdown };
 
-interface SiteArchetype {
-  id: string;
-  scenarioVersionId: string;
-  name: string;
-  numSites: number;
-  numCus: number;
-  numDcs: number;
-  numDusPerSite: number;
-  description: string | null;
-  deploymentYears: number;
-  deploymentSchedule: DeploymentYear[];
-}
-
-interface InputFact {
-  id: string;
-  scenarioVersionId: string;
-  day: string;
-  domain: string;
-  layer: string;
-  bucket: string;
-  scopeType: string;
-  scopeId: string | null;
-  driver: string;
-  valueNumber: number;
-  valueJson: string | null;
-  unit: string;
-  currency: string;
-  notes: string | null;
-  licenseModel: string | null;
-  spreadYears: number | null;
-}
-
-/**
- * Cost breakdown for a single archetype in a single year
- */
-export interface YearArchetypeCosts {
-  archetypeId: string | null;
-  archetypeName: string;
-  yearIndex: number;
-  sitesDeployedThisYear: number;
-  cumulativeSites: number;
-  cusDeployedThisYear: number;
-  cumulativeCus: number;
-  dcsDeployedThisYear: number;
-  cumulativeDcs: number;
-  day0: number;   // CAPEX procurement (uses deploymentsThisYear)
-  day1: number;   // CAPEX installation (uses deploymentsThisYear)
-  day2: number;   // OPEX operations (uses cumulativeToYear)
-  total: number;
-}
-
-/**
- * Summary for a single year across all archetypes
- */
-export interface YearlySummary {
-  yearIndex: number;
-  totalDay0: number;
-  totalDay1: number;
-  totalDay2: number;
-  totalCost: number;
-  archetypes: YearArchetypeCosts[];
-}
-
-/**
- * Complete yearly breakdown result
- */
-export interface YearlyCostBreakdown {
-  years: YearlySummary[];
-  grandTotal: {
-    day0: number;
-    day1: number;
-    day2: number;
-    total: number;
-    sites: number;
-  };
-}
-
-// Buckets that should always have multiplier = 1 (fixed cost, not scaled)
-const FIXED_MULTIPLIER_BUCKETS = [
-  'cluster_acceptance_testing',
-  'network_acceptance_testing',
-  'drive_tests',
-  'security_validation',
-  'core_integration',
-  'other_integration',
-];
-
-// Buckets that should use DC count as multiplier
-const DC_SCOPED_BUCKETS = [
-  'cu_server', 'switches_tor_oob', 'iptx_equipment', 'rack_accessories', 'other_ran_cu',
-  'cu_software_per_dc', '3pp_licenses_per_dc', 'other_ran_software',
-  'racks_cu_pdu_tor_install', 'all_iptx_config',
-];
-
-// Buckets that scale by DU count (sites × numDusPerSite)
-const DU_SCALED_BUCKETS = ['cloud_per_du_at_site'];
-
-/**
- * Get multiplier based on driver and counts
- */
-function getMultiplier(
+// Use centralized multiplier logic
+const getMultiplier = (
   driver: string,
   bucket: string,
-  counts: {
-    sites: number;
-    cus: number;
-    dcs: number;
-    dus: number;
-  }
-): number {
-  // Fixed multiplier buckets (testing, integration) are one-time costs
-  // They only apply in years with actual deployments
-  if (FIXED_MULTIPLIER_BUCKETS.includes(bucket)) {
-    const hasDeployments = counts.sites > 0 || counts.cus > 0 || counts.dcs > 0;
-    return hasDeployments ? 1 : 0;
-  }
-
-  // DU-scaled buckets use DU count (sites × numDusPerSite)
-  if (DU_SCALED_BUCKETS.includes(bucket)) {
-    return counts.dus;
-  }
-
-  // DC-scoped buckets use DC count
-  if (DC_SCOPED_BUCKETS.includes(bucket)) {
-    return counts.dcs;
-  }
-
-  switch (driver) {
-    case 'per_site':
-      return counts.sites;
-    case 'per_cu':
-      return counts.cus;
-    case 'per_dc':
-      return counts.dcs;
-    case 'per_server':
-    case 'per_license_unit':
-    case 'per_cluster':
-    case 'per_rapp':
-    case 'per_xapp':
-    case 'per_integration':
-    case 'fixed':
-    case 'per_year':
-      return 1;
-    default:
-      return 1;
-  }
-}
+  counts: { sites: number; cus: number; dcs: number; dus: number }
+) => getMultiplierForCounts(driver, bucket, counts);
 
 /**
  * Get deployment counts for a specific year from an archetype's schedule

@@ -3,51 +3,10 @@
  * Mirrors server-side logic from engine.ts for applying adjustment rules to input facts
  */
 
-/**
- * Adjustment rule interface matching database schema
- */
-export interface AdjustmentRule {
-  id?: string;
-  adjustmentSetId?: string;
-  targetDay: string | null;
-  targetDomain: string | null;
-  targetLayer: string | null;
-  targetBucket: string | null;
-  targetScopeType: string | null;
-  targetScopeId: string | null;
-  adjustmentType: string;
-  adjustmentValue: number;
-  priority: number;
-  notes: string | null;
-}
+import type { AdjustmentRule, AdjustmentSet, InputFact } from '@/lib/types';
 
-export interface AdjustmentSet {
-  id: string;
-  scenarioVersionId: string;
-  name: string;
-  description: string | null;
-  isActive: boolean;
-  rules: AdjustmentRule[];
-}
-
-export interface InputFact {
-  id: string;
-  scenarioVersionId: string;
-  day: string;
-  domain: string;
-  layer: string;
-  bucket: string;
-  scopeType: string;
-  scopeId: string | null;
-  driver: string;
-  valueNumber: number;
-  valueJson: string | null;
-  unit: string;
-  currency: string;
-  notes: string | null;
-  licenseModel: string | null;
-  spreadYears: number | null;
-}
+// Re-export types for backward compatibility
+export type { AdjustmentRule, AdjustmentSet, InputFact };
 
 /**
  * Check if an adjustment rule matches an input fact

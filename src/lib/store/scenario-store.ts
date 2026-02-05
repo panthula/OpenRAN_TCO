@@ -3,131 +3,16 @@
  */
 
 import { create } from 'zustand';
-
-interface Scenario {
-  id: string;
-  name: string;
-  description: string | null;
-  isBaseline: boolean;
-  versions: ScenarioVersion[];
-}
-
-interface ScenarioVersion {
-  id: string;
-  scenarioId: string;
-  versionNum: number;
-  description: string | null;
-  isActive: boolean;
-}
-
-interface DeploymentYear {
-  id?: string;
-  archetypeId?: string;
-  yearIndex: number;
-  sitesDeployed: number;
-  cusDeployed: number;
-  dcsDeployed: number;
-}
-
-interface SiteArchetype {
-  id: string;
-  scenarioVersionId: string;
-  name: string;
-  numSites: number;
-  numCus: number;
-  numDcs: number;
-  numDusPerSite: number;
-  description: string | null;
-  deploymentYears: number;
-  deploymentSchedule: DeploymentYear[];
-}
-
-interface InputFact {
-  id: string;
-  scenarioVersionId: string;
-  day: string;
-  domain: string;
-  layer: string;
-  bucket: string;
-  scopeType: string;
-  scopeId: string | null;
-  driver: string;
-  valueNumber: number;
-  valueJson: string | null;
-  unit: string;
-  currency: string;
-  notes: string | null;
-  licenseModel: string | null;
-  spreadYears: number | null;
-}
-
-interface ComputedSummary {
-  totalCapex: number;
-  totalOpex: number;
-  totalTco: number;
-  totalNpv: number;
-  byYear: { year: number; capex: number; opex: number; tco: number; npv: number }[];
-  byDayDomain?: Record<string, { capex: number; opex: number; tco: number }>;
-  adjustments?: { id: string; name: string; rulesApplied: number; totalImpact: number }[];
-  baselineTco?: number;
-}
-
-interface ScenarioComparisonData {
-  id: string;
-  name: string;
-  description: string | null;
-  isBaseline: boolean;
-  versionId: string;
-  versionNum: number;
-  summary: ComputedSummary | null;
-}
-
-interface AdjustmentRule {
-  id?: string;
-  adjustmentSetId?: string;
-  targetDay: string | null;
-  targetDomain: string | null;
-  targetLayer: string | null;
-  targetBucket: string | null;
-  targetScopeType: string | null;
-  targetScopeId: string | null;
-  adjustmentType: string;
-  adjustmentValue: number;
-  priority: number;
-  notes: string | null;
-}
-
-interface AdjustmentSet {
-  id: string;
-  scenarioVersionId: string;
-  name: string;
-  description: string | null;
-  isActive: boolean;
-  rules: AdjustmentRule[];
-}
-
-interface AgentMessage {
-  id: string;
-  versionId: string;
-  role: 'user' | 'assistant';
-  content: string;
-  changeSet?: {
-    id: string;
-    changes: Array<{
-      bucket: string;
-      currentValue: number;
-      proposedValue: number;
-      reason: string;
-    }>;
-    status: 'proposed' | 'approved' | 'rejected' | 'applying';
-    appliedResult?: {
-      newVersionNum: number;
-      tcoDelta: number;
-      newTco: number;
-    };
-  };
-  timestamp: number;
-}
+import type {
+  Scenario,
+  ScenarioVersion,
+  SiteArchetype,
+  InputFact,
+  ComputedSummary,
+  ScenarioComparisonData,
+  AdjustmentSet,
+  AgentMessage,
+} from '@/lib/types';
 
 interface ScenarioState {
   // Current selections

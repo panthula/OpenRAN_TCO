@@ -6,7 +6,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { InputTable } from '@/components/inputs/InputTable';
 import { YearlyInputTable } from '@/components/inputs/YearlyInputTable';
-import { CloudDollarSummary } from '@/components/cloud/CloudDollarSummary';
+import { DomainDollarSummary } from '@/components/summary/DomainDollarSummary';
 import {
   CloudLicenseBuckets,
   CloudLicenseBucketGroups,
@@ -194,7 +194,7 @@ export default function CloudPage() {
             <DollarSign className="w-4 h-4 text-emerald-400" />
             <span>Network-scaled cost summary across all Cloud Day 0/1/2 inputs</span>
           </div>
-          <CloudDollarSummary />
+          <DomainDollarSummary domain="cloud" />
         </div>
       )}
     </div>

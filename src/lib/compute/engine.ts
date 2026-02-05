@@ -13,18 +13,16 @@ import {
   DefaultCostRates,
   type ModelAssumptions,
 } from '@/lib/model/taxonomy';
+import type { AdjustmentRule, AdjustmentMetadata } from '@/lib/types';
+import { safeJsonParse } from '@/lib/utils/json-helpers';
+import {
+  getMultiplier,
+  DU_SCALED_BUCKETS,
+  SCALING_DRIVERS,
+} from './multipliers';
 
-/**
- * Safely parse JSON with fallback for malformed data
- */
-function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
-  if (!json) return fallback;
-  try {
-    return JSON.parse(json) as T;
-  } catch {
-    return fallback;
-  }
-}
+// Re-export for backward compatibility
+export { safeJsonParse };
 
 export interface ComputeResult {
   year: number;
@@ -45,12 +43,8 @@ export interface ComputeBreakdown {
   tco: number;
 }
 
-export interface AdjustmentMetadata {
-  id: string;
-  name: string;
-  rulesApplied: number;
-  totalImpact: number;
-}
+// Re-export AdjustmentMetadata for backward compatibility
+export type { AdjustmentMetadata };
 
 export interface ComputeSummary {
   totalCapex: number;
@@ -90,23 +84,7 @@ export async function getModelAssumptions(scenarioVersionId: string): Promise<Mo
   return result;
 }
 
-/**
- * Adjustment rule interface matching database schema
- */
-interface AdjustmentRule {
-  id: string;
-  adjustmentSetId: string;
-  targetDay: string | null;
-  targetDomain: string | null;
-  targetLayer: string | null;
-  targetBucket: string | null;
-  targetScopeType: string | null;
-  targetScopeId: string | null;
-  adjustmentType: string;
-  adjustmentValue: number;
-  priority: number;
-  notes: string | null;
-}
+// AdjustmentRule imported from @/lib/types
 
 interface AdjustmentSetWithRules {
   id: string;
@@ -357,69 +335,7 @@ async function getScalingCounts(
   return { deploymentsThisYear, cumulativeToYear };
 }
 
-/** Scaling driver constants for type safety */
-const SCALING_DRIVERS = {
-  PER_SITE: 'per_site',
-  PER_CU: 'per_cu',
-  PER_DC: 'per_dc',
-  PER_DU: 'per_du',  // DU count = sites × numDusPerSite
-} as const;
-
-/** Buckets that scale by DU count instead of site count */
-const DU_SCALED_BUCKETS = ['cloud_per_du_at_site'];
-
-/**
- * Calculate the multiplier based on driver, scope, and counts
- */
-function getMultiplier(
-  driver: string,
-  scopeType: string,
-  scopeId: string | null,
-  counts: {
-    sites: number;
-    cus: number;
-    dcs: number;
-    dus: number;
-    sitesByScopeId: Record<string, number>;
-    cusByScopeId: Record<string, number>;
-    dcsByScopeId: Record<string, number>;
-    dusByScopeId: Record<string, number>;
-  },
-  bucket?: string
-): number {
-  // Check if this bucket should use DU scaling
-  if (bucket && DU_SCALED_BUCKETS.includes(bucket)) {
-    return scopeType === 'site_archetype' && scopeId
-      ? counts.dusByScopeId[scopeId] ?? 0
-      : counts.dus;
-  }
-
-  switch (driver) {
-    case SCALING_DRIVERS.PER_SITE:
-      return scopeType === 'site_archetype' && scopeId
-        ? counts.sitesByScopeId[scopeId] ?? 0
-        : counts.sites;
-
-    case SCALING_DRIVERS.PER_CU:
-      return scopeType === 'site_archetype' && scopeId
-        ? counts.cusByScopeId[scopeId] ?? 0
-        : counts.cus;
-
-    case SCALING_DRIVERS.PER_DC:
-      if (scopeType === 'site_archetype' && scopeId) {
-        return counts.dcsByScopeId[scopeId] ?? 0;
-      }
-      return counts.dcs;
-
-    case SCALING_DRIVERS.PER_DU:
-      return scopeType === 'site_archetype' && scopeId
-        ? counts.dusByScopeId[scopeId] ?? 0
-        : counts.dus;
-
-    default:
-      return 1;
-  }
-}
+// getMultiplier, SCALING_DRIVERS, DU_SCALED_BUCKETS imported from ./multipliers
 
 /**
  * Compute TCO for a scenario version with deployment schedule support
@@ -504,11 +420,14 @@ export async function computeTco(scenarioVersionId: string): Promise<ComputeSumm
     // Track which adjustments were applied and their impact
     if (appliedRules.length > 0) {
       for (const rule of appliedRules) {
-        const tracker = adjustmentTracker.get(rule.adjustmentSetId);
-        if (tracker) {
-          tracker.rulesApplied++;
-          // Impact is the difference between adjusted and original
-          tracker.totalImpact += adjustedValue - fact.valueNumber;
+        // adjustmentSetId is always present for rules loaded from the database
+        if (rule.adjustmentSetId) {
+          const tracker = adjustmentTracker.get(rule.adjustmentSetId);
+          if (tracker) {
+            tracker.rulesApplied++;
+            // Impact is the difference between adjusted and original
+            tracker.totalImpact += adjustedValue - fact.valueNumber;
+          }
         }
       }
     }
